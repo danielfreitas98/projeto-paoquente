@@ -6,7 +6,12 @@ import type {
   ProdutoTermometroRow,
 } from "@/types/database";
 import type { Insumo, IngredienteFicha } from "@/lib/ficha-tecnica/calculations";
-import { CONFIG_MARKUP_PADRAO } from "@/lib/ficha-tecnica/calculations";
+import {
+  calcularMarkupMultiplicador,
+  calcularMargemReal,
+  classificarTermometro,
+  CONFIG_MARKUP_PADRAO,
+} from "@/lib/ficha-tecnica/calculations";
 
 export interface FichaTecnicaInitialData {
   produtoId: string | null;
@@ -37,6 +42,123 @@ function mapIngrediente(row: FichaDetalhadaRow): IngredienteFicha {
   };
 }
 
+async function obterConfiguracaoMarkupCompleta() {
+  const supabase = createAdminClient();
+  if (!supabase) return CONFIG_MARKUP_PADRAO;
+
+  const { data, error } = await supabase
+    .from("configuracao_negocio")
+    .select("percentual_variaveis, percentual_fixas, percentual_lucro")
+    .order("created_at")
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return CONFIG_MARKUP_PADRAO;
+
+  return {
+    percentualVariaveis: Number(data.percentual_variaveis),
+    percentualFixas: Number(data.percentual_fixas),
+    percentualLucro: Number(data.percentual_lucro),
+  };
+}
+
+async function listarProdutosComTermometroFallback(): Promise<
+  ProdutoTermometroRow[]
+> {
+  const supabase = createAdminClient();
+  if (!supabase) return [];
+
+  const [produtosResult, fichaResult, config] = await Promise.all([
+    supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
+    supabase
+      .from("ficha_tecnica")
+      .select("produto_id, quantidade_utilizada, insumos(custo_unitario)"),
+    obterConfiguracaoMarkupCompleta(),
+  ]);
+
+  if (produtosResult.error || !produtosResult.data) {
+    console.error(
+      "listarProdutosComTermometroFallback:",
+      produtosResult.error?.message
+    );
+    return [];
+  }
+
+  const markupMult = calcularMarkupMultiplicador(
+    config.percentualVariaveis,
+    config.percentualFixas,
+    config.percentualLucro
+  );
+
+  const cmvPorProduto = new Map<string, number>();
+  for (const row of fichaResult.data ?? []) {
+    const insumo = row.insumos as { custo_unitario: number } | null;
+    if (!insumo) continue;
+
+    const produtoId = row.produto_id as string;
+    const linhaCmv =
+      Number(row.quantidade_utilizada) * Number(insumo.custo_unitario);
+    cmvPorProduto.set(produtoId, (cmvPorProduto.get(produtoId) ?? 0) + linhaCmv);
+  }
+
+  return (produtosResult.data as ProdutoRow[]).map((produto) => {
+    const precoVenda = Number(produto.preco_venda);
+    const cmv = cmvPorProduto.get(produto.id) ?? 0;
+    const margemDesejada = produto.markup_desejado
+      ? Number(produto.markup_desejado)
+      : config.percentualLucro;
+    const margemBruta = calcularMargemReal(precoVenda, cmv);
+
+    return {
+      produto_id: produto.id,
+      produto_nome: produto.nome,
+      preco_venda: precoVenda,
+      markup_desejado: produto.markup_desejado
+        ? Number(produto.markup_desejado)
+        : null,
+      cmv,
+      margem_bruta_percentual: Math.round(margemBruta * 100) / 100,
+      preco_sugerido: Math.round(cmv * markupMult * 100) / 100,
+      termometro: classificarTermometro(margemBruta, margemDesejada),
+    };
+  });
+}
+
+async function listarFichaTecnicaDetalhadaFallback(
+  produtoId: string
+): Promise<IngredienteFicha[]> {
+  const supabase = createAdminClient();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("ficha_tecnica")
+    .select(
+      "id, quantidade_utilizada, insumos(id, nome, unidade_medida, custo_unitario)"
+    )
+    .eq("produto_id", produtoId);
+
+  if (error || !data) {
+    console.error("listarFichaTecnicaDetalhadaFallback:", error?.message);
+    return [];
+  }
+
+  return data.flatMap((row) => {
+    const insumo = row.insumos as InsumoRow | null;
+    if (!insumo) return [];
+
+    return [
+      {
+        id: row.id as string,
+        insumoId: insumo.id,
+        nome: insumo.nome,
+        unidadeMedida: insumo.unidade_medida,
+        quantidade: Number(row.quantidade_utilizada),
+        custoUnitario: Number(insumo.custo_unitario),
+      },
+    ];
+  });
+}
+
 export async function listarProdutosComTermometro(): Promise<
   ProdutoTermometroRow[]
 > {
@@ -48,12 +170,15 @@ export async function listarProdutosComTermometro(): Promise<
     .select("*")
     .order("produto_nome");
 
-  if (error) {
-    console.error("listarProdutosComTermometro:", error.message);
-    return [];
+  if (!error) {
+    return (data ?? []) as ProdutoTermometroRow[];
   }
 
-  return (data ?? []) as ProdutoTermometroRow[];
+  console.warn(
+    "listarProdutosComTermometro: view indisponível, usando fallback.",
+    error.message
+  );
+  return listarProdutosComTermometroFallback();
 }
 
 export async function listarInsumosAtivos(): Promise<Insumo[]> {
@@ -116,6 +241,16 @@ export async function obterFichaTecnicaPorProduto(
   if (!produto) return null;
 
   const margemPadrao = await obterConfiguracaoMarkup();
+  const ingredientes = fichaResult.error
+    ? await listarFichaTecnicaDetalhadaFallback(produtoId)
+    : ((fichaResult.data ?? []) as FichaDetalhadaRow[]).map(mapIngrediente);
+
+  if (fichaResult.error) {
+    console.warn(
+      "obterFichaTecnicaPorProduto: view indisponível, usando fallback.",
+      fichaResult.error.message
+    );
+  }
 
   return {
     produtoId: produto.id,
@@ -124,7 +259,7 @@ export async function obterFichaTecnicaPorProduto(
     margemDesejada: produto.markup_desejado
       ? Number(produto.markup_desejado)
       : margemPadrao,
-    ingredientes: ((fichaResult.data ?? []) as FichaDetalhadaRow[]).map(mapIngrediente),
+    ingredientes,
     insumos,
   };
 }
