@@ -13,6 +13,29 @@ import {
   CONFIG_MARKUP_PADRAO,
 } from "@/lib/ficha-tecnica/calculations";
 
+let viewsDisponiveis: boolean | null = null;
+
+async function viewsTermometroDisponiveis(
+  supabase: NonNullable<ReturnType<typeof createAdminClient>>
+): Promise<boolean> {
+  if (viewsDisponiveis !== null) return viewsDisponiveis;
+
+  const { error } = await supabase
+    .from("vw_produto_termometro")
+    .select("produto_id")
+    .limit(1);
+
+  viewsDisponiveis = !error;
+  if (error) {
+    console.warn(
+      "Views de produto indisponíveis; usando fallback nas tabelas base.",
+      error.message
+    );
+  }
+
+  return viewsDisponiveis;
+}
+
 export interface FichaTecnicaInitialData {
   produtoId: string | null;
   nomeProduto: string;
@@ -165,6 +188,10 @@ export async function listarProdutosComTermometro(): Promise<
   const supabase = createAdminClient();
   if (!supabase) return [];
 
+  if (!(await viewsTermometroDisponiveis(supabase))) {
+    return listarProdutosComTermometroFallback();
+  }
+
   const { data, error } = await supabase
     .from("vw_produto_termometro")
     .select("*")
@@ -174,8 +201,9 @@ export async function listarProdutosComTermometro(): Promise<
     return (data ?? []) as ProdutoTermometroRow[];
   }
 
+  viewsDisponiveis = false;
   console.warn(
-    "listarProdutosComTermometro: view indisponível, usando fallback.",
+    "listarProdutosComTermometro: erro na view, usando fallback.",
     error.message
   );
   return listarProdutosComTermometroFallback();

@@ -15,9 +15,13 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:migrate": "supabase migration up",
-    "db:types": "supabase gen types typescript --local > apps/web/src/types/database.ts"
+    "db:types": "supabase gen types typescript --local > apps/web/src/types/database.ts",
+    "db:migrate:cloud": "node scripts/apply-migrations-cloud.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "pg": "^8.21.0"
   }
 }

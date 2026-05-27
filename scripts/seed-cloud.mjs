@@ -129,14 +129,18 @@ if (croissant && allInsumos) {
 
 const { count: insCount } = await supabase.from("insumos").select("*", { count: "exact", head: true });
 const { count: prodCount } = await supabase.from("produtos").select("*", { count: "exact", head: true });
-const { data: termometro } = await supabase.from("vw_produto_termometro").select("produto_nome, cmv_total, margem_real_pct");
+const { data: termometro } = await supabase
+  .from("vw_produto_termometro")
+  .select("produto_nome, cmv, margem_bruta_percentual, termometro");
 
 console.log("\n--- Resumo ---");
 console.log(`Total insumos: ${insCount}`);
 console.log(`Total produtos: ${prodCount}`);
 console.log("Termômetro de lucro:");
 for (const row of termometro ?? []) {
-  console.log(`  ${row.produto_nome}: CMV R$${Number(row.cmv_total).toFixed(2)} | margem ${Number(row.margem_real_pct).toFixed(1)}%`);
+  console.log(
+    `  ${row.produto_nome}: CMV R$${Number(row.cmv).toFixed(2)} | margem ${Number(row.margem_bruta_percentual).toFixed(1)}% | ${row.termometro}`
+  );
 }
 
 console.log("\nSeed concluído com sucesso!");

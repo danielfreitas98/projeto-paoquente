@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { readFileSync, readdirSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -7,8 +7,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const envPath = resolve(__dirname, "../apps/web/.env.local");
 const migrationsDir = resolve(__dirname, "../supabase/migrations");
 const PROJECT_REF = "gfrjyhletwzhmdhjhfhp";
+const CLOUD_MIGRATION = "20250524120003_idempotent_cloud.sql";
 
 function loadEnv(path) {
+  if (!existsSync(path)) {
+    throw new Error(`Arquivo não encontrado: ${path}`);
+  }
+
   return Object.fromEntries(
     readFileSync(path, "utf8")
       .split("\n")
@@ -20,78 +25,71 @@ function loadEnv(path) {
   );
 }
 
-const env = loadEnv(envPath);
-const accessToken =
-  process.env.SUPABASE_ACCESS_TOKEN || env.SUPABASE_ACCESS_TOKEN;
-const dbPassword =
-  process.env.SUPABASE_DB_PASSWORD || env.SUPABASE_DB_PASSWORD;
-const dbUrl =
-  process.env.SUPABASE_DB_URL ||
-  env.SUPABASE_DB_URL ||
-  (dbPassword
-    ? `postgresql://postgres.gfrjyhletwzhmdhjhfhp:${encodeURIComponent(dbPassword)}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres`
-    : null);
-
-function migrationFiles() {
-  return readdirSync(migrationsDir)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .slice(1);
+function buildDbUrls(password) {
+  const encoded = encodeURIComponent(password);
+  const host = `aws-0-sa-east-1.pooler.supabase.com`;
+  return [
+    `postgresql://postgres.${PROJECT_REF}:${encoded}@${host}:6543/postgres`,
+    `postgresql://postgres.${PROJECT_REF}:${encoded}@${host}:5432/postgres`,
+    `postgresql://postgres:${encoded}@db.${PROJECT_REF}.supabase.co:5432/postgres`,
+  ];
 }
 
-async function applyWithManagementApi() {
-  if (!accessToken) return false;
+async function applyWithManagementApi(accessToken, sql) {
+  console.log(`Aplicando ${CLOUD_MIGRATION} via Management API...`);
 
-  for (const file of migrationFiles()) {
-    const query = readFileSync(join(migrationsDir, file), "utf8");
-    console.log(`Aplicando ${file} via Management API...`);
-
-    const response = await fetch(
-      `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query }),
-      }
-    );
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`${file}: ${response.status} ${body}`);
+  const response = await fetch(
+    `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: sql }),
     }
+  );
 
-    console.log("  OK");
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${response.status} ${body}`);
   }
 
+  console.log("  OK");
   return true;
 }
 
-async function applyWithPg() {
-  if (!dbUrl) return false;
-
+async function applyWithPg(dbUrls, sql) {
   const { default: pg } = await import("pg");
-  const client = new pg.Client({
-    connectionString: dbUrl,
-    ssl: { rejectUnauthorized: false },
-  });
+  let lastError = null;
 
-  await client.connect();
+  for (const connectionString of dbUrls) {
+    const client = new pg.Client({
+      connectionString,
+      ssl: { rejectUnauthorized: false },
+    });
 
-  for (const file of migrationFiles()) {
-    const sql = readFileSync(join(migrationsDir, file), "utf8");
-    console.log(`Aplicando ${file} via Postgres...`);
-    await client.query(sql);
-    console.log("  OK");
+    try {
+      console.log(`Aplicando ${CLOUD_MIGRATION} via Postgres...`);
+      await client.connect();
+      await client.query(sql);
+      await client.end();
+      console.log("  OK");
+      return true;
+    } catch (error) {
+      lastError = error;
+      try {
+        await client.end();
+      } catch {
+        // ignore disconnect errors
+      }
+    }
   }
 
-  await client.end();
-  return true;
+  throw lastError;
 }
 
-async function verifyViews() {
+async function verifyViews(env) {
   const supabase = createClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY
@@ -107,7 +105,7 @@ async function verifyViews() {
   console.log("\nVerificando views:");
   for (const view of views) {
     const { error } = await supabase.from(view).select("*").limit(1);
-    console.log(`  ${view}: ${error ? "AUSENTE" : "OK"}`);
+    console.log(`  ${view}: ${error ? `AUSENTE (${error.message})` : "OK"}`);
   }
 
   const { data, error } = await supabase
@@ -122,26 +120,42 @@ async function verifyViews() {
         `  ${row.produto_nome} | CMV R$${Number(row.cmv).toFixed(2)} | ${row.termometro}`
       );
     }
+  } else if (error) {
+    console.warn("\nView vw_produto_termometro ainda indisponível:", error.message);
   }
 }
 
 try {
-  const applied =
-    (await applyWithManagementApi()) || (await applyWithPg());
+  const env = loadEnv(envPath);
+  const sql = readFileSync(join(migrationsDir, CLOUD_MIGRATION), "utf8");
+  const accessToken =
+    process.env.SUPABASE_ACCESS_TOKEN || env.SUPABASE_ACCESS_TOKEN;
+  const dbPassword =
+    process.env.SUPABASE_DB_PASSWORD || env.SUPABASE_DB_PASSWORD;
+  const dbUrl = process.env.SUPABASE_DB_URL || env.SUPABASE_DB_URL;
+
+  let applied = false;
+
+  if (accessToken) {
+    applied = await applyWithManagementApi(accessToken, sql);
+  } else if (dbUrl || dbPassword) {
+    const dbUrls = dbUrl ? [dbUrl] : buildDbUrls(dbPassword);
+    applied = await applyWithPg(dbUrls, sql);
+  }
 
   if (!applied) {
     console.error(
-      "Defina SUPABASE_ACCESS_TOKEN ou SUPABASE_DB_PASSWORD para aplicar migrations.\n"
+      "Credencial de banco ausente. Adicione em apps/web/.env.local uma das opções:\n"
     );
-    console.error("Alternativa: SQL Editor do Supabase → executar:");
-    for (const file of migrationFiles()) {
-      console.error(`  supabase/migrations/${file}`);
-    }
+    console.error("  SUPABASE_ACCESS_TOKEN=...  (Dashboard → Account → Access Tokens)");
+    console.error("  SUPABASE_DB_PASSWORD=...    (Dashboard → Project Settings → Database)\n");
+    console.error("Alternativa manual: SQL Editor do Supabase → executar:");
+    console.error(`  supabase/migrations/${CLOUD_MIGRATION}`);
     process.exit(1);
   }
 
-  console.log("\nMigrations aplicadas com sucesso!");
-  await verifyViews();
+  console.log("\nMigration cloud aplicada com sucesso!");
+  await verifyViews(env);
 } catch (err) {
   console.error("Erro:", err.message);
   process.exit(1);
