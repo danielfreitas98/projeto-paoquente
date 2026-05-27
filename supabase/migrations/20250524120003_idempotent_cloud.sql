@@ -220,16 +220,16 @@ LEFT JOIN public.transacoes t ON t.categoria_id = cf.id AND t.status = 'PAGO' AN
 GROUP BY cf.id, cf.nome, cf.tipo, cp.nome ORDER BY cf.tipo, total DESC;
 
 CREATE OR REPLACE VIEW public.vw_dre_simplificado AS
-SELECT DATE_TRUNC('month', data_competencia)::DATE AS mes,
-  COALESCE(SUM(CASE WHEN tipo = 'RECEITA' THEN valor END), 0) AS receita_bruta,
-  COALESCE(SUM(CASE WHEN tipo = 'DESPESA' AND cf.nome = 'Matéria-Prima' THEN valor END), 0) AS cmv_despesas,
-  COALESCE(SUM(CASE WHEN tipo = 'DESPESA' THEN valor END), 0) AS despesas_totais,
-  COALESCE(SUM(CASE WHEN tipo = 'RECEITA' THEN valor END), 0)
-    - COALESCE(SUM(CASE WHEN tipo = 'DESPESA' THEN valor END), 0) AS lucro_liquido
+SELECT DATE_TRUNC('month', t.data_competencia)::DATE AS mes,
+  COALESCE(SUM(CASE WHEN t.tipo = 'RECEITA' THEN t.valor END), 0) AS receita_bruta,
+  COALESCE(SUM(CASE WHEN t.tipo = 'DESPESA' AND cf.nome = 'Matéria-Prima' THEN t.valor END), 0) AS cmv_despesas,
+  COALESCE(SUM(CASE WHEN t.tipo = 'DESPESA' THEN t.valor END), 0) AS despesas_totais,
+  COALESCE(SUM(CASE WHEN t.tipo = 'RECEITA' THEN t.valor END), 0)
+    - COALESCE(SUM(CASE WHEN t.tipo = 'DESPESA' THEN t.valor END), 0) AS lucro_liquido
 FROM public.transacoes t
 LEFT JOIN public.categorias_financeiras cf ON cf.id = t.categoria_id
 WHERE t.status = 'PAGO' AND t.transacao_origem_id IS NULL
-GROUP BY DATE_TRUNC('month', data_competencia) ORDER BY mes;
+GROUP BY DATE_TRUNC('month', t.data_competencia) ORDER BY mes;
 
 ALTER TABLE public.configuracao_negocio ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.insumos ENABLE ROW LEVEL SECURITY;

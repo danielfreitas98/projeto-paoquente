@@ -15,6 +15,13 @@ import {
 
 let viewsDisponiveis: boolean | null = null;
 
+function normalizarInsumoRelacionado<T>(
+  insumos: T | T[] | null | undefined
+): T | null {
+  if (!insumos) return null;
+  return Array.isArray(insumos) ? (insumos[0] ?? null) : insumos;
+}
+
 async function viewsTermometroDisponiveis(
   supabase: NonNullable<ReturnType<typeof createAdminClient>>
 ): Promise<boolean> {
@@ -115,7 +122,7 @@ async function listarProdutosComTermometroFallback(): Promise<
 
   const cmvPorProduto = new Map<string, number>();
   for (const row of fichaResult.data ?? []) {
-    const insumo = row.insumos as { custo_unitario: number } | null;
+    const insumo = normalizarInsumoRelacionado(row.insumos);
     if (!insumo) continue;
 
     const produtoId = row.produto_id as string;
@@ -166,7 +173,7 @@ async function listarFichaTecnicaDetalhadaFallback(
   }
 
   return data.flatMap((row) => {
-    const insumo = row.insumos as InsumoRow | null;
+    const insumo = normalizarInsumoRelacionado(row.insumos);
     if (!insumo) return [];
 
     return [
