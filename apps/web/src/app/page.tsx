@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChefHat, Wallet, ArrowRight } from "lucide-react";
+import { ChefHat, Wallet, Package, ArrowRight } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -16,6 +16,13 @@ const modules = [
       "Cadastre produtos, monte receitas com insumos e calcule CMV e margem em tempo real.",
     href: "/produtos",
     icon: ChefHat,
+  },
+  {
+    title: "Controle de Estoque",
+    description:
+      "Gerencie insumos, produtos acabados e refrigerados. Importe NF-e e controle validade.",
+    href: "/estoque",
+    icon: Package,
   },
   {
     title: "Gestão Financeira",
@@ -37,7 +44,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {modules.map((mod) => (
           <Card key={mod.href} className="transition-shadow hover:shadow-md">
             <CardHeader>

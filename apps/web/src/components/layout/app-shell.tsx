@@ -7,12 +7,14 @@ import {
   ChefHat,
   Wallet,
   Wheat,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
   { href: "/produtos", label: "Produtos", icon: ChefHat },
+  { href: "/estoque", label: "Estoque", icon: Package },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
 ];
 
