@@ -8,11 +8,13 @@ import {
   Wallet,
   Wheat,
   Package,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Início", icon: LayoutDashboard },
+  { href: "/pdv", label: "PDV", icon: ShoppingCart },
   { href: "/produtos", label: "Produtos", icon: ChefHat },
   { href: "/estoque", label: "Estoque", icon: Package },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
@@ -20,6 +22,11 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isPdv = pathname.startsWith("/pdv");
+
+  if (isPdv) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-background">

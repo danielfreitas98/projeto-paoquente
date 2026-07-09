@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChefHat, Wallet, Package, ArrowRight } from "lucide-react";
+import { ChefHat, Wallet, Package, ShoppingCart, ArrowRight } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,6 +10,13 @@ import {
 import { Button } from "@/components/ui/button";
 
 const modules = [
+  {
+    title: "PDV — Frente de Caixa",
+    description:
+      "Registre vendas rapidamente, baixe estoque automaticamente e gere receita financeira.",
+    href: "/pdv",
+    icon: ShoppingCart,
+  },
   {
     title: "Ficha Técnica",
     description:
