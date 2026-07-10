@@ -116,7 +116,7 @@ async function buscarEstoqueRows(): Promise<{ rows: EstoqueRow[]; error?: string
       .order("descricao");
 
     if (!error) {
-      return { rows: (data ?? []) as EstoqueRow[] };
+      return { rows: (data ?? []) as unknown as EstoqueRow[] };
     }
 
     lastError = error.message;
