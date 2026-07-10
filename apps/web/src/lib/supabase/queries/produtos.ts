@@ -1,11 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   FichaDetalhadaRow,
-  InsumoRow,
   ProdutoRow,
   ProdutoTermometroRow,
 } from "@/types/database";
 import type { Insumo, IngredienteFicha } from "@/lib/ficha-tecnica/calculations";
+import {
+  mapEstoqueProdutoParaInsumo,
+} from "@/lib/ficha-tecnica/insumo-mapper";
 import {
   calcularMarkupMultiplicador,
   calcularMargemReal,
@@ -45,13 +47,28 @@ export interface FichaTecnicaInitialData {
   insumos: Insumo[];
 }
 
-function mapInsumo(row: InsumoRow): Insumo {
-  return {
-    id: row.id,
-    nome: row.nome,
-    unidadeMedida: row.unidade_medida,
-    custoUnitario: Number(row.custo_unitario),
-  };
+async function listarInsumosEstoqueMap(): Promise<Map<string, Insumo>> {
+  const supabase = createAdminClient();
+  const map = new Map<string, Insumo>();
+  if (!supabase) return map;
+
+  const { data, error } = await supabase
+    .from("estoque_produtos")
+    .select("id, descricao, unidade_medida, custo_medio")
+    .eq("categoria", "INSUMO")
+    .eq("ativo", true);
+
+  if (error) {
+    console.error("listarInsumosEstoqueMap:", error.message);
+    return map;
+  }
+
+  for (const row of data ?? []) {
+    const insumo = mapEstoqueProdutoParaInsumo(row);
+    map.set(insumo.id, insumo);
+  }
+
+  return map;
 }
 
 function mapIngrediente(row: FichaDetalhadaRow): IngredienteFicha {
@@ -91,12 +108,12 @@ async function listarProdutosComTermometroFallback(): Promise<
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const [produtosResult, fichaResult, insumosResult, config] = await Promise.all([
+  const [produtosResult, fichaResult, insumosMap, config] = await Promise.all([
     supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
     supabase
       .from("ficha_tecnica")
       .select("produto_id, insumo_id, quantidade_utilizada"),
-    supabase.from("insumos").select("id, custo_unitario").eq("ativo", true),
+    listarInsumosEstoqueMap(),
     obterConfiguracaoMarkupCompleta(),
   ]);
 
@@ -114,18 +131,13 @@ async function listarProdutosComTermometroFallback(): Promise<
     config.percentualLucro
   );
 
-  const custoPorInsumo = new Map<string, number>();
-  for (const insumo of insumosResult.data ?? []) {
-    custoPorInsumo.set(insumo.id as string, Number(insumo.custo_unitario));
-  }
-
   const cmvPorProduto = new Map<string, number>();
   for (const row of fichaResult.data ?? []) {
-    const custoUnitario = custoPorInsumo.get(row.insumo_id as string);
-    if (custoUnitario === undefined) continue;
+    const insumo = insumosMap.get(row.insumo_id as string);
+    if (!insumo) continue;
 
     const produtoId = row.produto_id as string;
-    const linhaCmv = Number(row.quantidade_utilizada) * custoUnitario;
+    const linhaCmv = Number(row.quantidade_utilizada) * insumo.custoUnitario;
     cmvPorProduto.set(produtoId, (cmvPorProduto.get(produtoId) ?? 0) + linhaCmv);
   }
 
@@ -158,12 +170,12 @@ async function listarFichaTecnicaDetalhadaFallback(
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const [fichaResult, insumosResult] = await Promise.all([
+  const [fichaResult, insumosMap] = await Promise.all([
     supabase
       .from("ficha_tecnica")
       .select("id, insumo_id, quantidade_utilizada")
       .eq("produto_id", produtoId),
-    supabase.from("insumos").select("id, nome, unidade_medida, custo_unitario").eq("ativo", true),
+    listarInsumosEstoqueMap(),
   ]);
 
   if (fichaResult.error || !fichaResult.data) {
@@ -171,22 +183,18 @@ async function listarFichaTecnicaDetalhadaFallback(
     return [];
   }
 
-  const insumoPorId = new Map(
-    (insumosResult.data ?? []).map((insumo) => [insumo.id as string, insumo])
-  );
-
   return fichaResult.data.flatMap((row) => {
-    const insumo = insumoPorId.get(row.insumo_id as string);
+    const insumo = insumosMap.get(row.insumo_id as string);
     if (!insumo) return [];
 
     return [
       {
         id: row.id as string,
-        insumoId: insumo.id as string,
-        nome: insumo.nome as string,
-        unidadeMedida: insumo.unidade_medida as IngredienteFicha["unidadeMedida"],
+        insumoId: insumo.id,
+        nome: insumo.nome,
+        unidadeMedida: insumo.unidadeMedida,
         quantidade: Number(row.quantidade_utilizada),
-        custoUnitario: Number(insumo.custo_unitario),
+        custoUnitario: insumo.custoUnitario,
       },
     ];
   });
@@ -224,17 +232,18 @@ export async function listarInsumosAtivos(): Promise<Insumo[]> {
   if (!supabase) return [];
 
   const { data, error } = await supabase
-    .from("insumos")
-    .select("*")
+    .from("estoque_produtos")
+    .select("id, descricao, unidade_medida, custo_medio")
+    .eq("categoria", "INSUMO")
     .eq("ativo", true)
-    .order("nome");
+    .order("descricao");
 
   if (error) {
     console.error("listarInsumosAtivos:", error.message);
     return [];
   }
 
-  return ((data ?? []) as InsumoRow[]).map(mapInsumo);
+  return (data ?? []).map(mapEstoqueProdutoParaInsumo);
 }
 
 export async function obterConfiguracaoMarkup(): Promise<number> {

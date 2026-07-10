@@ -95,27 +95,76 @@ WHERE NOT EXISTS (
 -- ---------------------------------------------------------------------------
 -- Redirecionar ficha_tecnica.insumo_id para estoque_produtos
 -- ---------------------------------------------------------------------------
-UPDATE public.ficha_tecnica ft
-SET insumo_id = ep.id
-FROM public.insumos i
-JOIN public.estoque_produtos ep ON ep.categoria = 'INSUMO'
-  AND (
-    ep.descricao = i.nome
-    OR ep.descricao ILIKE i.nome || '%'
-    OR i.nome ILIKE '%' || ep.descricao || '%'
-  )
-WHERE ft.insumo_id = i.id;
+ALTER TABLE public.ficha_tecnica
+  ADD COLUMN IF NOT EXISTS novo_insumo_id UUID;
 
-DELETE FROM public.ficha_tecnica ft
-WHERE NOT EXISTS (
-  SELECT 1
-  FROM public.estoque_produtos ep
-  WHERE ep.id = ft.insumo_id
-    AND ep.categoria = 'INSUMO'
-);
+UPDATE public.ficha_tecnica ft
+SET novo_insumo_id = map.estoque_id
+FROM (
+  SELECT
+    ft2.id AS ficha_id,
+    (
+      SELECT ep.id
+      FROM public.insumos i
+      JOIN public.estoque_produtos ep ON ep.categoria = 'INSUMO'
+        AND (
+          ep.descricao = i.nome
+          OR ep.descricao ILIKE i.nome || '%'
+          OR i.nome ILIKE '%' || ep.descricao || '%'
+        )
+      WHERE i.id = ft2.insumo_id
+      ORDER BY
+        CASE WHEN ep.descricao = i.nome THEN 0 ELSE 1 END,
+        length(ep.descricao)
+      LIMIT 1
+    ) AS estoque_id
+  FROM public.ficha_tecnica ft2
+) map
+WHERE ft.id = map.ficha_id
+  AND map.estoque_id IS NOT NULL;
 
 ALTER TABLE public.ficha_tecnica
   DROP CONSTRAINT IF EXISTS ficha_tecnica_insumo_id_fkey;
+
+WITH duplicatas AS (
+  SELECT
+    produto_id,
+    novo_insumo_id,
+    SUM(quantidade_utilizada) AS qtd_total,
+    (MIN(id::text))::uuid AS manter_id
+  FROM public.ficha_tecnica
+  WHERE novo_insumo_id IS NOT NULL
+  GROUP BY produto_id, novo_insumo_id
+  HAVING COUNT(*) > 1
+),
+atualiza AS (
+  UPDATE public.ficha_tecnica ft
+  SET quantidade_utilizada = d.qtd_total
+  FROM duplicatas d
+  WHERE ft.id = d.manter_id
+  RETURNING 1
+)
+DELETE FROM public.ficha_tecnica ft
+USING duplicatas d
+WHERE ft.produto_id = d.produto_id
+  AND ft.novo_insumo_id = d.novo_insumo_id
+  AND ft.id <> d.manter_id;
+
+UPDATE public.ficha_tecnica
+SET insumo_id = novo_insumo_id
+WHERE novo_insumo_id IS NOT NULL;
+
+DELETE FROM public.ficha_tecnica ft
+WHERE novo_insumo_id IS NULL
+   OR NOT EXISTS (
+     SELECT 1
+     FROM public.estoque_produtos ep
+     WHERE ep.id = COALESCE(ft.novo_insumo_id, ft.insumo_id)
+       AND ep.categoria = 'INSUMO'
+   );
+
+ALTER TABLE public.ficha_tecnica
+  DROP COLUMN IF EXISTS novo_insumo_id;
 
 ALTER TABLE public.ficha_tecnica
   ADD CONSTRAINT ficha_tecnica_insumo_id_fkey
