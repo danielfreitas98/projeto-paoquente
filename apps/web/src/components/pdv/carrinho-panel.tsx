@@ -26,8 +26,8 @@ import type { ItemCarrinho, MetodoPagamentoVenda } from "@/types/pdv";
 interface CarrinhoPanelProps {
   itens: ItemCarrinho[];
   desconto: number;
-  onAlterarQuantidade: (produtoId: string, delta: number) => void;
-  onRemoverItem: (produtoId: string) => void;
+  onAlterarQuantidade: (chave: string, delta: number) => void;
+  onRemoverItem: (chave: string) => void;
   onConcluirVenda: (
     metodo: MetodoPagamentoVenda,
     valorRecebido?: number
@@ -119,7 +119,7 @@ export function CarrinhoPanel({
             <ul className="space-y-2">
               {itens.map((item) => (
                 <li
-                  key={item.produtoId}
+                  key={item.chave}
                   className="flex items-center gap-3 rounded-lg border border-border bg-background p-3"
                 >
                   <div className="min-w-0 flex-1">
@@ -134,7 +134,7 @@ export function CarrinhoPanel({
                       variant="outline"
                       size="icon"
                       className="size-8"
-                      onClick={() => onAlterarQuantidade(item.produtoId, -1)}
+                      onClick={() => onAlterarQuantidade(item.chave, -1)}
                     >
                       <Minus className="size-3.5" />
                     </Button>
@@ -146,7 +146,7 @@ export function CarrinhoPanel({
                       variant="outline"
                       size="icon"
                       className="size-8"
-                      onClick={() => onAlterarQuantidade(item.produtoId, 1)}
+                      onClick={() => onAlterarQuantidade(item.chave, 1)}
                     >
                       <Plus className="size-3.5" />
                     </Button>
@@ -155,7 +155,7 @@ export function CarrinhoPanel({
                       variant="ghost"
                       size="icon"
                       className="size-8 text-destructive hover:text-destructive"
-                      onClick={() => onRemoverItem(item.produtoId)}
+                      onClick={() => onRemoverItem(item.chave)}
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

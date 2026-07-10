@@ -1,15 +1,24 @@
 export type MetodoPagamentoVenda = "DINHEIRO" | "PIX" | "CARTAO";
 export type StatusVenda = "CONCLUIDA" | "CANCELADA";
+export type OrigemProdutoPdv = "produto" | "estoque";
 
 export interface ProdutoPdv {
   id: string;
+  origem: OrigemProdutoPdv;
   nome: string;
   codigo: string | null;
   preco_venda: number;
   ativo: boolean;
+  categoria?: string | null;
+}
+
+export function chaveProdutoPdv(produto: Pick<ProdutoPdv, "id" | "origem">): string {
+  return `${produto.origem}:${produto.id}`;
 }
 
 export interface ItemCarrinho {
+  chave: string;
+  origem: OrigemProdutoPdv;
   produtoId: string;
   nome: string;
   precoUnitario: number;
@@ -17,7 +26,8 @@ export interface ItemCarrinho {
 }
 
 export interface VendaItemInput {
-  produto_id: string;
+  produto_id?: string;
+  estoque_produto_id?: string;
   quantidade: number;
   preco_unitario: number;
 }
