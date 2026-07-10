@@ -20,7 +20,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatPercent } from "@/lib/utils";
+import { calcularCMVPercentual } from "@/lib/ficha-tecnica/calculations";
 import type { ProdutoTermometroRow } from "@/types/database";
 import { excluirProdutoAction } from "@/app/produtos/actions";
 
@@ -28,16 +29,16 @@ interface ProdutosListProps {
   produtos: ProdutoTermometroRow[];
 }
 
-const termometroVariant = {
+const cmvStatusVariant = {
   VERDE: "success",
   AMARELO: "warning",
   VERMELHO: "destructive",
 } as const;
 
-const termometroLabel = {
-  VERDE: "Saudável",
+const cmvStatusLabel = {
+  VERDE: "Excelente",
   AMARELO: "Atenção",
-  VERMELHO: "Prejuízo",
+  VERMELHO: "Crítico",
 } as const;
 
 export function ProdutosList({ produtos }: ProdutosListProps) {
@@ -101,10 +102,10 @@ export function ProdutosList({ produtos }: ProdutosListProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Produto</TableHead>
-                <TableHead className="text-right">CMV</TableHead>
+                <TableHead className="text-right">CMV %</TableHead>
                 <TableHead className="text-right">Preço Venda</TableHead>
                 <TableHead className="text-right">Sugerido</TableHead>
-                <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-center">CMV</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -117,6 +118,14 @@ export function ProdutosList({ produtos }: ProdutosListProps) {
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(Number(produto.cmv))}
                   </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {formatPercent(
+                      calcularCMVPercentual(
+                        Number(produto.preco_venda),
+                        Number(produto.cmv)
+                      )
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(Number(produto.preco_venda))}
                   </TableCell>
@@ -124,8 +133,8 @@ export function ProdutosList({ produtos }: ProdutosListProps) {
                     {formatCurrency(Number(produto.preco_sugerido))}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant={termometroVariant[produto.termometro]}>
-                      {termometroLabel[produto.termometro]}
+                    <Badge variant={cmvStatusVariant[produto.termometro]}>
+                      {cmvStatusLabel[produto.termometro]}
                     </Badge>
                   </TableCell>
                   <TableCell>

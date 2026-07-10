@@ -16,74 +16,140 @@ export interface IngredienteFicha {
   custoUnitario: number;
 }
 
-export type TermometroStatus = "VERDE" | "AMARELO" | "VERMELHO";
+/** Estrutura extensível para custos futuros (embalagem, mão de obra, impostos, etc.). */
+export interface EstruturaCustos {
+  custoReceita: number;
+  custoEmbalagem?: number;
+  custoMaoDeObra?: number;
+  custosIndiretos?: number;
+  impostosPercentual?: number;
+}
+
+export type CmvStatus = "VERDE" | "AMARELO" | "VERMELHO";
+
+/** @deprecated Use CmvStatus */
+export type TermometroStatus = CmvStatus;
 
 export interface ResumoFinanceiro {
   cmv: number;
+  cmvPercentual: number;
+  precoAtual: number;
   precoSugerido: number;
-  margemReal: number;
-  lucroUnitario: number;
-  termometro: TermometroStatus;
+  diferencaPreco: number;
+  margemBruta: number;
+  margemBrutaPercentual: number;
+  markup: number;
+  statusCmv: CmvStatus;
 }
 
-/** Percentuais padrão da configuração do negócio (variáveis + fixas + lucro < 100). */
-export const CONFIG_MARKUP_PADRAO = {
-  percentualVariaveis: 35,
-  percentualFixas: 20,
-  percentualLucro: 15,
-};
+export const CMV_ALVO_PADRAO = 30;
 
-export function calcularMarkupMultiplicador(
-  variaveis = CONFIG_MARKUP_PADRAO.percentualVariaveis,
-  fixas = CONFIG_MARKUP_PADRAO.percentualFixas,
-  lucro = CONFIG_MARKUP_PADRAO.percentualLucro
-): number {
-  const soma = variaveis + fixas + lucro;
-  if (soma >= 100) return 1;
-  return 100 / (100 - soma);
+/** Tolerância em pontos percentuais para classificar CMV como "próximo da meta". */
+export const TOLERANCIA_CMV_PP = 5;
+
+export function calcularCustoTotal(custos: EstruturaCustos): number {
+  return (
+    custos.custoReceita +
+    (custos.custoEmbalagem ?? 0) +
+    (custos.custoMaoDeObra ?? 0) +
+    (custos.custosIndiretos ?? 0)
+  );
 }
 
-export function calcularCmv(ingredientes: IngredienteFicha[]): number {
+export function calcularCMV(ingredientes: IngredienteFicha[]): number {
   return ingredientes.reduce(
     (total, item) => total + item.quantidade * item.custoUnitario,
     0
   );
 }
 
-export function calcularPrecoSugerido(cmv: number): number {
-  return cmv * calcularMarkupMultiplicador();
+/** @deprecated Use calcularCMV */
+export const calcularCmv = calcularCMV;
+
+export function calcularPrecoSugerido(
+  cmv: number,
+  cmvAlvo: number = CMV_ALVO_PADRAO
+): number {
+  if (cmvAlvo <= 0 || cmvAlvo >= 100) return 0;
+  return Math.round((cmv / (cmvAlvo / 100)) * 100) / 100;
 }
 
-export function calcularMargemReal(precoVenda: number, cmv: number): number {
+export function calcularCMVPercentual(
+  precoVenda: number,
+  cmv: number
+): number {
   if (precoVenda <= 0) return 0;
-  return ((precoVenda - cmv) / precoVenda) * 100;
+  return Math.round(((cmv / precoVenda) * 100) * 100) / 100;
 }
 
+export function calcularMargemBruta(precoVenda: number, cmv: number): number {
+  return Math.round((precoVenda - cmv) * 100) / 100;
+}
+
+export function calcularMargemBrutaPercentual(
+  precoVenda: number,
+  cmv: number
+): number {
+  if (precoVenda <= 0) return 0;
+  return Math.round((((precoVenda - cmv) / precoVenda) * 100) * 100) / 100;
+}
+
+export function calcularMarkup(precoVenda: number, cmv: number): number {
+  if (cmv <= 0) return 0;
+  return Math.round((precoVenda / cmv) * 100) / 100;
+}
+
+/** @deprecated Use calcularMargemBrutaPercentual */
+export function calcularMargemReal(precoVenda: number, cmv: number): number {
+  return calcularMargemBrutaPercentual(precoVenda, cmv);
+}
+
+export function classificarCmv(
+  cmvPercentual: number,
+  cmvAlvo: number
+): CmvStatus {
+  if (cmvPercentual < cmvAlvo) return "VERDE";
+  if (cmvPercentual <= cmvAlvo + TOLERANCIA_CMV_PP) return "AMARELO";
+  return "VERMELHO";
+}
+
+/** @deprecated Use classificarCmv */
 export function classificarTermometro(
   margemReal: number,
   margemDesejada: number
-): TermometroStatus {
-  if (margemReal < 0) return "VERMELHO";
-  if (margemReal < margemDesejada) return "AMARELO";
-  return "VERDE";
+): CmvStatus {
+  const cmvPercentual = 100 - margemReal;
+  return classificarCmv(cmvPercentual, 100 - margemDesejada);
 }
 
 export function calcularResumoFinanceiro(
   ingredientes: IngredienteFicha[],
   precoVenda: number,
-  margemDesejada: number
+  cmvAlvo: number,
+  custosExtras?: Omit<EstruturaCustos, "custoReceita">
 ): ResumoFinanceiro {
-  const cmv = calcularCmv(ingredientes);
-  const precoSugerido = calcularPrecoSugerido(cmv);
-  const margemReal = calcularMargemReal(precoVenda, cmv);
-  const lucroUnitario = precoVenda - cmv;
+  const custoReceita = calcularCMV(ingredientes);
+  const cmv = custosExtras
+    ? calcularCustoTotal({ custoReceita, ...custosExtras })
+    : custoReceita;
+
+  const precoSugerido = calcularPrecoSugerido(cmv, cmvAlvo);
+  const cmvPercentual = calcularCMVPercentual(precoVenda, cmv);
+  const margemBruta = calcularMargemBruta(precoVenda, cmv);
+  const margemBrutaPercentual = calcularMargemBrutaPercentual(precoVenda, cmv);
+  const markup = calcularMarkup(precoVenda, cmv);
+  const diferencaPreco = Math.round((precoVenda - precoSugerido) * 100) / 100;
 
   return {
     cmv,
+    cmvPercentual,
+    precoAtual: precoVenda,
     precoSugerido,
-    margemReal,
-    lucroUnitario,
-    termometro: classificarTermometro(margemReal, margemDesejada),
+    diferencaPreco,
+    margemBruta,
+    margemBrutaPercentual,
+    markup,
+    statusCmv: classificarCmv(cmvPercentual, cmvAlvo),
   };
 }
 

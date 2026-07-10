@@ -35,9 +35,7 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
   const [produtoId, setProdutoId] = React.useState(initialData.produtoId);
   const [nomeProduto, setNomeProduto] = React.useState(initialData.nomeProduto);
   const [precoVenda, setPrecoVenda] = React.useState(initialData.precoVenda);
-  const [margemDesejada, setMargemDesejada] = React.useState(
-    initialData.margemDesejada
-  );
+  const [cmvAlvo, setCmvAlvo] = React.useState(initialData.cmvAlvo);
   const [insumos] = React.useState<Insumo[]>(initialData.insumos);
   const [insumoSelecionado, setInsumoSelecionado] = React.useState<Insumo | null>(
     null
@@ -53,8 +51,8 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
   } | null>(null);
 
   const resumo = React.useMemo(
-    () => calcularResumoFinanceiro(ingredientes, precoVenda, margemDesejada),
-    [ingredientes, precoVenda, margemDesejada]
+    () => calcularResumoFinanceiro(ingredientes, precoVenda, cmvAlvo),
+    [ingredientes, precoVenda, cmvAlvo]
   );
 
   function handleAdicionarIngrediente() {
@@ -106,7 +104,7 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
       produtoId,
       nomeProduto,
       precoVenda,
-      margemDesejada,
+      cmvAlvo,
       ingredientes: ingredientes.map((item) => ({
         insumoId: item.insumoId,
         quantidade: item.quantidade,
@@ -191,18 +189,22 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="margem">Margem de Lucro Desejada (%)</Label>
+                <Label htmlFor="cmvAlvo">CMV Alvo (%)</Label>
                 <Input
-                  id="margem"
+                  id="cmvAlvo"
                   type="number"
-                  min={0}
+                  min={1}
                   max={99}
                   step={0.5}
-                  value={margemDesejada}
+                  value={cmvAlvo}
                   onChange={(e) =>
-                    setMargemDesejada(parseFloat(e.target.value) || 0)
+                    setCmvAlvo(parseFloat(e.target.value) || 0)
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Meta de custo sobre o preço de venda. Ex.: 30% → preço sugerido
+                  = custo ÷ 0,30
+                </p>
               </div>
             </div>
           </CardContent>
@@ -280,11 +282,7 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
       </div>
 
       <aside>
-        <FinancialSummaryCard
-          resumo={resumo}
-          precoVenda={precoVenda}
-          margemDesejada={margemDesejada}
-        />
+        <FinancialSummaryCard resumo={resumo} cmvAlvo={cmvAlvo} />
       </aside>
     </div>
   );

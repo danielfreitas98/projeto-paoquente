@@ -9,10 +9,11 @@ import {
   mapEstoqueProdutoParaInsumo,
 } from "@/lib/ficha-tecnica/insumo-mapper";
 import {
-  calcularMarkupMultiplicador,
-  calcularMargemReal,
-  classificarTermometro,
-  CONFIG_MARKUP_PADRAO,
+  calcularCMVPercentual,
+  calcularMargemBrutaPercentual,
+  calcularPrecoSugerido,
+  classificarCmv,
+  CMV_ALVO_PADRAO,
 } from "@/lib/ficha-tecnica/calculations";
 
 let viewsDisponiveis: boolean | null = null;
@@ -42,7 +43,7 @@ export interface FichaTecnicaInitialData {
   produtoId: string | null;
   nomeProduto: string;
   precoVenda: number;
-  margemDesejada: number;
+  cmvAlvo: number;
   ingredientes: IngredienteFicha[];
   insumos: Insumo[];
 }
@@ -82,39 +83,18 @@ function mapIngrediente(row: FichaDetalhadaRow): IngredienteFicha {
   };
 }
 
-async function obterConfiguracaoMarkupCompleta() {
-  const supabase = createAdminClient();
-  if (!supabase) return CONFIG_MARKUP_PADRAO;
-
-  const { data, error } = await supabase
-    .from("configuracao_negocio")
-    .select("percentual_variaveis, percentual_fixas, percentual_lucro")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) return CONFIG_MARKUP_PADRAO;
-
-  return {
-    percentualVariaveis: Number(data.percentual_variaveis),
-    percentualFixas: Number(data.percentual_fixas),
-    percentualLucro: Number(data.percentual_lucro),
-  };
-}
-
 async function listarProdutosComTermometroFallback(): Promise<
   ProdutoTermometroRow[]
 > {
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const [produtosResult, fichaResult, insumosMap, config] = await Promise.all([
+  const [produtosResult, fichaResult, insumosMap] = await Promise.all([
     supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
     supabase
       .from("ficha_tecnica")
       .select("produto_id, insumo_id, quantidade_utilizada"),
     listarInsumosEstoqueMap(),
-    obterConfiguracaoMarkupCompleta(),
   ]);
 
   if (produtosResult.error || !produtosResult.data) {
@@ -124,12 +104,6 @@ async function listarProdutosComTermometroFallback(): Promise<
     );
     return [];
   }
-
-  const markupMult = calcularMarkupMultiplicador(
-    config.percentualVariaveis,
-    config.percentualFixas,
-    config.percentualLucro
-  );
 
   const cmvPorProduto = new Map<string, number>();
   for (const row of fichaResult.data ?? []) {
@@ -144,10 +118,11 @@ async function listarProdutosComTermometroFallback(): Promise<
   return (produtosResult.data as ProdutoRow[]).map((produto) => {
     const precoVenda = Number(produto.preco_venda);
     const cmv = cmvPorProduto.get(produto.id) ?? 0;
-    const margemDesejada = produto.markup_desejado
+    const cmvAlvo = produto.markup_desejado
       ? Number(produto.markup_desejado)
-      : config.percentualLucro;
-    const margemBruta = calcularMargemReal(precoVenda, cmv);
+      : CMV_ALVO_PADRAO;
+    const cmvPercentual = calcularCMVPercentual(precoVenda, cmv);
+    const margemBruta = calcularMargemBrutaPercentual(precoVenda, cmv);
 
     return {
       produto_id: produto.id,
@@ -157,9 +132,9 @@ async function listarProdutosComTermometroFallback(): Promise<
         ? Number(produto.markup_desejado)
         : null,
       cmv,
-      margem_bruta_percentual: Math.round(margemBruta * 100) / 100,
-      preco_sugerido: Math.round(cmv * markupMult * 100) / 100,
-      termometro: classificarTermometro(margemBruta, margemDesejada),
+      margem_bruta_percentual: margemBruta,
+      preco_sugerido: calcularPrecoSugerido(cmv, cmvAlvo),
+      termometro: classificarCmv(cmvPercentual, cmvAlvo),
     };
   });
 }
@@ -246,22 +221,8 @@ export async function listarInsumosAtivos(): Promise<Insumo[]> {
   return (data ?? []).map(mapEstoqueProdutoParaInsumo);
 }
 
-export async function obterConfiguracaoMarkup(): Promise<number> {
-  const supabase = createAdminClient();
-  if (!supabase) return CONFIG_MARKUP_PADRAO.percentualLucro;
-
-  const { data, error } = await supabase
-    .from("configuracao_negocio")
-    .select("percentual_lucro")
-    .order("created_at")
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data) {
-    return CONFIG_MARKUP_PADRAO.percentualLucro;
-  }
-
-  return Number((data as { percentual_lucro: number }).percentual_lucro);
+export async function obterCmvAlvoPadrao(): Promise<number> {
+  return CMV_ALVO_PADRAO;
 }
 
 export async function obterFichaTecnicaPorProduto(
@@ -287,7 +248,7 @@ export async function obterFichaTecnicaPorProduto(
   const produto = produtoResult.data as ProdutoRow | null;
   if (!produto) return null;
 
-  const margemPadrao = await obterConfiguracaoMarkup();
+  const cmvAlvoPadrao = await obterCmvAlvoPadrao();
   const ingredientes = fichaResult.error
     ? await listarFichaTecnicaDetalhadaFallback(produtoId)
     : ((fichaResult.data ?? []) as FichaDetalhadaRow[]).map(mapIngrediente);
@@ -303,25 +264,25 @@ export async function obterFichaTecnicaPorProduto(
     produtoId: produto.id,
     nomeProduto: produto.nome,
     precoVenda: Number(produto.preco_venda),
-    margemDesejada: produto.markup_desejado
+    cmvAlvo: produto.markup_desejado
       ? Number(produto.markup_desejado)
-      : margemPadrao,
+      : cmvAlvoPadrao,
     ingredientes,
     insumos,
   };
 }
 
 export async function obterDadosNovoProduto(): Promise<FichaTecnicaInitialData> {
-  const [insumos, margemPadrao] = await Promise.all([
+  const [insumos, cmvAlvoPadrao] = await Promise.all([
     listarInsumosAtivos(),
-    obterConfiguracaoMarkup(),
+    obterCmvAlvoPadrao(),
   ]);
 
   return {
     produtoId: null,
     nomeProduto: "",
     precoVenda: 0,
-    margemDesejada: margemPadrao,
+    cmvAlvo: cmvAlvoPadrao,
     ingredientes: [],
     insumos,
   };
@@ -331,7 +292,7 @@ export interface SalvarFichaTecnicaInput {
   produtoId: string | null;
   nomeProduto: string;
   precoVenda: number;
-  margemDesejada: number;
+  cmvAlvo: number;
   ingredientes: Array<{
     insumoId: string;
     quantidade: number;
@@ -361,7 +322,7 @@ export async function salvarFichaTecnica(
       .update({
         nome: input.nomeProduto.trim(),
         preco_venda: input.precoVenda,
-        markup_desejado: input.margemDesejada,
+        markup_desejado: input.cmvAlvo,
       })
       .eq("id", produtoId);
 
@@ -374,7 +335,7 @@ export async function salvarFichaTecnica(
       .insert({
         nome: input.nomeProduto.trim(),
         preco_venda: input.precoVenda,
-        markup_desejado: input.margemDesejada,
+        markup_desejado: input.cmvAlvo,
       })
       .select("id")
       .single();
