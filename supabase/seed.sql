@@ -1,16 +1,18 @@
 -- Seed de demonstração para desenvolvimento local
 -- Executar após migrations: supabase db reset (ou psql manual)
+-- Insumos vêm de estoque_produtos com categoria INSUMO (view public.insumos)
 
-INSERT INTO public.insumos (nome, unidade_medida, preco_compra, quantidade_compra) VALUES
-  ('Farinha de Trigo', 'g', 4.50, 1000),
-  ('Manteiga', 'g', 19.00, 500),
-  ('Açúcar', 'g', 5.00, 1000),
-  ('Ovos', 'un', 0.65, 1),
-  ('Leite Integral', 'ml', 4.80, 1000),
-  ('Fermento Biológico', 'g', 2.20, 100),
-  ('Chocolate ao Leite', 'g', 11.00, 200),
-  ('Café em Grãos', 'g', 40.00, 500)
-ON CONFLICT DO NOTHING;
+INSERT INTO public.estoque_produtos (codigo, descricao, categoria, unidade_medida, estoque_atual, estoque_minimo, custo_medio)
+VALUES
+  ('INS-FT-001', 'Farinha de Trigo', 'INSUMO', 'kg', 50, 5, 4.50),
+  ('INS-FT-002', 'Manteiga', 'INSUMO', 'kg', 10, 1, 38.00),
+  ('INS-FT-003', 'Açúcar', 'INSUMO', 'kg', 25, 2.5, 5.00),
+  ('INS-FT-004', 'Ovos', 'INSUMO', 'un', 500, 50, 0.65),
+  ('INS-FT-005', 'Leite Integral', 'INSUMO', 'l', 30, 3, 4.80),
+  ('INS-FT-006', 'Fermento Biológico', 'INSUMO', 'g', 2000, 200, 0.022),
+  ('INS-FT-007', 'Chocolate ao Leite', 'INSUMO', 'g', 5000, 500, 0.055),
+  ('INS-FT-008', 'Café em Grãos', 'INSUMO', 'g', 10000, 1000, 0.08)
+ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO public.produtos (nome, preco_venda, markup_desejado) VALUES
   ('Croissant', 12.90, 15.00),
@@ -18,7 +20,6 @@ INSERT INTO public.produtos (nome, preco_venda, markup_desejado) VALUES
   ('Cappuccino', 9.90, 20.00)
 ON CONFLICT DO NOTHING;
 
--- Ficha técnica do Croissant (usa IDs gerados — ajuste se necessário)
 INSERT INTO public.ficha_tecnica (produto_id, insumo_id, quantidade_utilizada)
 SELECT p.id, i.id, v.qtd
 FROM public.produtos p

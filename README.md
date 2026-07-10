@@ -32,7 +32,7 @@ projeto-paoquente/
 
 ### Tabelas principais
 
-- `insumos` — ingredientes com `custo_unitario` calculado automaticamente
+- `insumos` — view dos produtos de estoque categorizados como INSUMO (custo e unidade normalizados para a ficha técnica)
 - `produtos` — itens de venda
 - `ficha_tecnica` — receita (produto × insumo × quantidade)
 - `categorias_financeiras` — plano de contas hierárquico

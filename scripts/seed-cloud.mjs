@@ -29,15 +29,15 @@ if (!url || !key) {
 
 const supabase = createClient(url, key);
 
-const INSUMOS = [
-  { nome: "Farinha de Trigo", unidade_medida: "g", preco_compra: 4.5, quantidade_compra: 1000 },
-  { nome: "Manteiga", unidade_medida: "g", preco_compra: 19.0, quantidade_compra: 500 },
-  { nome: "Açúcar", unidade_medida: "g", preco_compra: 5.0, quantidade_compra: 1000 },
-  { nome: "Ovos", unidade_medida: "un", preco_compra: 0.65, quantidade_compra: 1 },
-  { nome: "Leite Integral", unidade_medida: "ml", preco_compra: 4.8, quantidade_compra: 1000 },
-  { nome: "Fermento Biológico", unidade_medida: "g", preco_compra: 2.2, quantidade_compra: 100 },
-  { nome: "Chocolate ao Leite", unidade_medida: "g", preco_compra: 11.0, quantidade_compra: 200 },
-  { nome: "Café em Grãos", unidade_medida: "g", preco_compra: 40.0, quantidade_compra: 500 },
+const INSUMOS_ESTOQUE = [
+  { codigo: "INS-CL-001", descricao: "Farinha de Trigo", unidade_medida: "kg", estoque_atual: 50, estoque_minimo: 5, custo_medio: 4.5 },
+  { codigo: "INS-CL-002", descricao: "Manteiga", unidade_medida: "kg", estoque_atual: 10, estoque_minimo: 1, custo_medio: 38.0 },
+  { codigo: "INS-CL-003", descricao: "Açúcar", unidade_medida: "kg", estoque_atual: 25, estoque_minimo: 2.5, custo_medio: 5.0 },
+  { codigo: "INS-CL-004", descricao: "Ovos", unidade_medida: "un", estoque_atual: 500, estoque_minimo: 50, custo_medio: 0.65 },
+  { codigo: "INS-CL-005", descricao: "Leite Integral", unidade_medida: "l", estoque_atual: 30, estoque_minimo: 3, custo_medio: 4.8 },
+  { codigo: "INS-CL-006", descricao: "Fermento Biológico", unidade_medida: "g", estoque_atual: 2000, estoque_minimo: 200, custo_medio: 0.022 },
+  { codigo: "INS-CL-007", descricao: "Chocolate ao Leite", unidade_medida: "g", estoque_atual: 5000, estoque_minimo: 500, custo_medio: 0.055 },
+  { codigo: "INS-CL-008", descricao: "Café em Grãos", unidade_medida: "g", estoque_atual: 10000, estoque_minimo: 1000, custo_medio: 0.08 },
 ];
 
 const PRODUTOS = [
@@ -66,19 +66,25 @@ if (configErr) {
 
 console.log("Conectado! Empresa:", config?.[0]?.nome_empresa);
 
-const { data: existingInsumos } = await supabase.from("insumos").select("nome");
-const existingInsumoNames = new Set((existingInsumos ?? []).map((i) => i.nome));
-const insumosToInsert = INSUMOS.filter((i) => !existingInsumoNames.has(i.nome));
+const { data: existingInsumos } = await supabase
+  .from("estoque_produtos")
+  .select("codigo")
+  .eq("categoria", "INSUMO");
+const existingInsumoCodes = new Set((existingInsumos ?? []).map((i) => i.codigo));
+const insumosToInsert = INSUMOS_ESTOQUE.filter((i) => !existingInsumoCodes.has(i.codigo));
 
 if (insumosToInsert.length > 0) {
-  const { data, error } = await supabase.from("insumos").insert(insumosToInsert).select("id, nome");
+  const { data, error } = await supabase
+    .from("estoque_produtos")
+    .insert(insumosToInsert.map((i) => ({ ...i, categoria: "INSUMO" })))
+    .select("id, descricao");
   if (error) {
-    console.error("Erro ao inserir insumos:", error.message);
+    console.error("Erro ao inserir insumos no estoque:", error.message);
     process.exit(1);
   }
-  console.log(`Inseridos ${data.length} insumos:`, data.map((i) => i.nome).join(", "));
+  console.log(`Inseridos ${data.length} insumos:`, data.map((i) => i.descricao).join(", "));
 } else {
-  console.log("Insumos já existem, pulando inserção.");
+  console.log("Insumos de estoque já existem, pulando inserção.");
 }
 
 const { data: existingProdutos } = await supabase.from("produtos").select("nome, id");

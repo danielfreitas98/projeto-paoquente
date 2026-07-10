@@ -15,13 +15,6 @@ import {
 
 let viewsDisponiveis: boolean | null = null;
 
-function normalizarInsumoRelacionado<T>(
-  insumos: T | T[] | null | undefined
-): T | null {
-  if (!insumos) return null;
-  return Array.isArray(insumos) ? (insumos[0] ?? null) : insumos;
-}
-
 async function viewsTermometroDisponiveis(
   supabase: NonNullable<ReturnType<typeof createAdminClient>>
 ): Promise<boolean> {
@@ -98,11 +91,12 @@ async function listarProdutosComTermometroFallback(): Promise<
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const [produtosResult, fichaResult, config] = await Promise.all([
+  const [produtosResult, fichaResult, insumosResult, config] = await Promise.all([
     supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
     supabase
       .from("ficha_tecnica")
-      .select("produto_id, quantidade_utilizada, insumos(custo_unitario)"),
+      .select("produto_id, insumo_id, quantidade_utilizada"),
+    supabase.from("insumos").select("id, custo_unitario").eq("ativo", true),
     obterConfiguracaoMarkupCompleta(),
   ]);
 
@@ -120,14 +114,18 @@ async function listarProdutosComTermometroFallback(): Promise<
     config.percentualLucro
   );
 
+  const custoPorInsumo = new Map<string, number>();
+  for (const insumo of insumosResult.data ?? []) {
+    custoPorInsumo.set(insumo.id as string, Number(insumo.custo_unitario));
+  }
+
   const cmvPorProduto = new Map<string, number>();
   for (const row of fichaResult.data ?? []) {
-    const insumo = normalizarInsumoRelacionado(row.insumos);
-    if (!insumo) continue;
+    const custoUnitario = custoPorInsumo.get(row.insumo_id as string);
+    if (custoUnitario === undefined) continue;
 
     const produtoId = row.produto_id as string;
-    const linhaCmv =
-      Number(row.quantidade_utilizada) * Number(insumo.custo_unitario);
+    const linhaCmv = Number(row.quantidade_utilizada) * custoUnitario;
     cmvPorProduto.set(produtoId, (cmvPorProduto.get(produtoId) ?? 0) + linhaCmv);
   }
 
@@ -160,28 +158,33 @@ async function listarFichaTecnicaDetalhadaFallback(
   const supabase = createAdminClient();
   if (!supabase) return [];
 
-  const { data, error } = await supabase
-    .from("ficha_tecnica")
-    .select(
-      "id, quantidade_utilizada, insumos(id, nome, unidade_medida, custo_unitario)"
-    )
-    .eq("produto_id", produtoId);
+  const [fichaResult, insumosResult] = await Promise.all([
+    supabase
+      .from("ficha_tecnica")
+      .select("id, insumo_id, quantidade_utilizada")
+      .eq("produto_id", produtoId),
+    supabase.from("insumos").select("id, nome, unidade_medida, custo_unitario").eq("ativo", true),
+  ]);
 
-  if (error || !data) {
-    console.error("listarFichaTecnicaDetalhadaFallback:", error?.message);
+  if (fichaResult.error || !fichaResult.data) {
+    console.error("listarFichaTecnicaDetalhadaFallback:", fichaResult.error?.message);
     return [];
   }
 
-  return data.flatMap((row) => {
-    const insumo = normalizarInsumoRelacionado(row.insumos);
+  const insumoPorId = new Map(
+    (insumosResult.data ?? []).map((insumo) => [insumo.id as string, insumo])
+  );
+
+  return fichaResult.data.flatMap((row) => {
+    const insumo = insumoPorId.get(row.insumo_id as string);
     if (!insumo) return [];
 
     return [
       {
         id: row.id as string,
-        insumoId: insumo.id,
-        nome: insumo.nome,
-        unidadeMedida: insumo.unidade_medida,
+        insumoId: insumo.id as string,
+        nome: insumo.nome as string,
+        unidadeMedida: insumo.unidade_medida as IngredienteFicha["unidadeMedida"],
         quantidade: Number(row.quantidade_utilizada),
         custoUnitario: Number(insumo.custo_unitario),
       },

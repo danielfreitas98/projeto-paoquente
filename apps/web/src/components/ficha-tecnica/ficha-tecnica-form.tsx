@@ -153,7 +153,8 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
         {insumos.length === 0 && (
           <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
             <AlertCircle className="size-4 shrink-0" />
-            Nenhum insumo cadastrado. Cadastre insumos no banco antes de montar a ficha.
+            Nenhum insumo disponível. Cadastre produtos com categoria &quot;Insumo&quot; no
+            estoque antes de montar a ficha.
           </div>
         )}
 
