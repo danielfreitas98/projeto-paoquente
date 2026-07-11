@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import { AlertCircle } from "lucide-react";
 import { SummaryCards } from "@/components/financeiro/summary-cards";
 import { CashFlowChart } from "@/components/financeiro/cash-flow-chart";
 import { DreTable } from "@/components/financeiro/dre-table";
+import { FiltroPeriodoFinanceiro } from "@/components/financeiro/filtro-periodo";
 import { LancamentoDialog } from "@/components/financeiro/lancamento-dialog";
 import { PlanoContasTable } from "@/components/financeiro/plano-contas-table";
 import { TransacoesTable } from "@/components/financeiro/transacoes-table";
@@ -13,9 +15,16 @@ export const metadata = {
   description: "Fluxo de caixa, DRE e relatórios gerenciais",
 };
 
-export default async function FinanceiroPage() {
+export const dynamic = "force-dynamic";
+
+interface PageProps {
+  searchParams: Promise<{ de?: string; ate?: string }>;
+}
+
+export default async function FinanceiroPage({ searchParams }: PageProps) {
+  const params = await searchParams;
   const { dashboard, transacoes, planoContas, categorias, contas } =
-    await obterDadosFinanceiroPage();
+    await obterDadosFinanceiroPage(params);
   const supabaseOk = isSupabaseConfigured();
 
   return (
@@ -47,9 +56,19 @@ export default async function FinanceiroPage() {
         </div>
       )}
 
-      <SummaryCards resumo={dashboard.resumo} />
+      <Suspense fallback={<div className="h-28 animate-pulse rounded-lg bg-muted" />}>
+        <FiltroPeriodoFinanceiro />
+      </Suspense>
 
-      <CashFlowChart data={dashboard.fluxo7Dias} />
+      <SummaryCards
+        resumo={dashboard.resumo}
+        periodo={dashboard.resumo.periodo}
+      />
+
+      <CashFlowChart
+        data={dashboard.fluxoPeriodo}
+        periodo={dashboard.resumo.periodo}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <DreTable linhas={dashboard.dre} periodo={dashboard.resumo.periodo} />

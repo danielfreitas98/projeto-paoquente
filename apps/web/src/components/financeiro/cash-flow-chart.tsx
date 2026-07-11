@@ -23,9 +23,10 @@ import type { CashFlowDay } from "@/lib/financeiro/mock-data";
 
 interface CashFlowChartProps {
   data: CashFlowDay[];
+  periodo: string;
 }
 
-export function CashFlowChart({ data }: CashFlowChartProps) {
+export function CashFlowChart({ data, periodo }: CashFlowChartProps) {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -35,8 +36,8 @@ export function CashFlowChart({ data }: CashFlowChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Fluxo de Caixa — Últimos 7 dias</CardTitle>
-        <CardDescription>Entradas vs Saídas diárias</CardDescription>
+        <CardTitle>Fluxo de Caixa</CardTitle>
+        <CardDescription>Entradas vs Saídas — {periodo}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[320px] w-full">

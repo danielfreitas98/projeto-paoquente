@@ -33,7 +33,9 @@ export function TransacoesTable({ transacoes }: TransacoesTableProps) {
     <Card>
       <CardHeader>
         <CardTitle>Lançamentos Recentes</CardTitle>
-        <CardDescription>Últimas movimentações financeiras</CardDescription>
+        <CardDescription>
+          Últimas movimentações no período selecionado
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {transacoes.length === 0 ? (

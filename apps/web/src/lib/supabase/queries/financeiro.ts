@@ -6,6 +6,13 @@ import {
   FLUXO_7_DIAS,
   DRE_MENSAL,
 } from "@/lib/financeiro/mock-data";
+import {
+  formatDateLocal,
+  formatDia,
+  formatPeriodoLabel,
+  parseFiltroPeriodo,
+  type FiltroPeriodo,
+} from "@/lib/financeiro/periodo";
 import type {
   ActionResult,
   CategoriaFinanceira,
@@ -14,42 +21,7 @@ import type {
   TransacaoFinanceira,
 } from "@/types/financeiro";
 
-const MESES = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
-
 const CATEGORIAS_FIXAS = new Set(["Aluguel", "Salários"]);
-
-function formatPeriodo(date: Date): string {
-  return `${MESES[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-function formatDateLocal(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function startOfMonth(date: Date): string {
-  return formatDateLocal(new Date(date.getFullYear(), date.getMonth(), 1));
-}
-
-function formatDia(dateStr: string): string {
-  const [, month, day] = dateStr.split("-");
-  return `${day}/${month}`;
-}
 
 function getReadClient() {
   const client = createAdminClient();
@@ -66,39 +38,37 @@ function getWriteClient() {
   return client;
 }
 
-export interface DashboardFinanceiro {
-  resumo: ResumoFinanceiroMensal;
-  fluxo7Dias: CashFlowDay[];
-  dre: DreLinha[];
-  usandoMock: boolean;
-}
+type TransacaoBase = {
+  data_competencia: string;
+  tipo: string;
+  valor: number;
+};
 
-export interface DadosFinanceiroPage {
-  dashboard: DashboardFinanceiro;
-  transacoes: TransacaoFinanceira[];
-  planoContas: PlanoContaResumo[];
-  categorias: CategoriaFinanceira[];
-  contas: ContaBancaria[];
-}
+type TransacaoComCategoria = {
+  tipo: string;
+  valor: number;
+  categorias_financeiras: { nome: string } | { nome: string }[] | null;
+};
 
-function buildFluxo7Dias(
-  transacoes: Array<{ data_competencia: string; tipo: string; valor: number }>,
-  hoje: Date
+function buildFluxoPeriodo(
+  transacoes: TransacaoBase[],
+  periodo: FiltroPeriodo
 ): CashFlowDay[] {
-  const seteDiasAtras = new Date(hoje);
-  seteDiasAtras.setDate(hoje.getDate() - 6);
+  const [yi, mi, di] = periodo.dataInicio.split("-").map(Number);
+  const [yf, mf, df] = periodo.dataFim.split("-").map(Number);
+  const inicio = new Date(yi, mi - 1, di);
+  const fim = new Date(yf, mf - 1, df);
 
   const fluxoMap = new Map<string, CashFlowDay>();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(seteDiasAtras);
-    d.setDate(seteDiasAtras.getDate() + i);
-    const key = formatDateLocal(d);
+  const cursor = new Date(inicio);
+  while (cursor <= fim) {
+    const key = formatDateLocal(cursor);
     fluxoMap.set(key, { dia: formatDia(key), entradas: 0, saidas: 0 });
+    cursor.setDate(cursor.getDate() + 1);
   }
 
   for (const t of transacoes) {
-    const key = t.data_competencia;
-    const entry = fluxoMap.get(key);
+    const entry = fluxoMap.get(t.data_competencia);
     if (!entry) continue;
     const valor = Number(t.valor);
     if (t.tipo === "RECEITA") entry.entradas += valor;
@@ -108,50 +78,47 @@ function buildFluxo7Dias(
   return Array.from(fluxoMap.values());
 }
 
+function calcularTotais(transacoes: TransacaoBase[]) {
+  let totalReceitas = 0;
+  let totalDespesas = 0;
+
+  for (const t of transacoes) {
+    const valor = Number(t.valor);
+    if (t.tipo === "RECEITA") totalReceitas += valor;
+    if (t.tipo === "DESPESA") totalDespesas += valor;
+  }
+
+  return { totalReceitas, totalDespesas };
+}
+
 function buildDre(
-  dreRow: {
-    receita_bruta: number;
-    cmv_despesas: number;
-    despesas_totais: number;
-    lucro_liquido: number;
-  } | null,
   totalReceitas: number,
   totalDespesas: number,
-  transacoesMes: Array<{
-    tipo: string;
-    valor: number;
-    categorias_financeiras: { nome: string } | { nome: string }[] | null;
-  }>
+  transacoesPeriodo: TransacaoComCategoria[]
 ): DreLinha[] {
-  const receitaBruta = Number(dreRow?.receita_bruta ?? totalReceitas);
-  const cmvDespesas = Number(dreRow?.cmv_despesas ?? 0);
-  const despesasTotais = Number(dreRow?.despesas_totais ?? totalDespesas);
-  const lucroLiquido = Number(
-    dreRow?.lucro_liquido ?? receitaBruta - despesasTotais
-  );
-
+  let cmvDespesas = 0;
   let despesasFixas = 0;
   let despesasVariaveis = 0;
 
-  for (const t of transacoesMes) {
+  for (const t of transacoesPeriodo) {
     if (t.tipo !== "DESPESA") continue;
     const cat = t.categorias_financeiras;
     const categoria = Array.isArray(cat) ? cat[0]?.nome : cat?.nome;
     const valor = Number(t.valor);
-    if (categoria && CATEGORIAS_FIXAS.has(categoria)) {
+
+    if (categoria === "Matéria-Prima") {
+      cmvDespesas += valor;
+    } else if (categoria && CATEGORIAS_FIXAS.has(categoria)) {
       despesasFixas += valor;
-    } else if (categoria !== "Matéria-Prima") {
+    } else {
       despesasVariaveis += valor;
     }
   }
 
-  const outrasDespesas = Math.max(
-    despesasTotais - cmvDespesas - despesasFixas - despesasVariaveis,
-    0
-  );
-  despesasVariaveis += outrasDespesas;
-
+  const receitaBruta = totalReceitas;
+  const despesasTotais = totalDespesas;
   const margemBruta = receitaBruta - cmvDespesas;
+  const lucroLiquido = receitaBruta - despesasTotais;
 
   return [
     {
@@ -186,7 +153,7 @@ function buildDre(
     },
     {
       id: "6",
-      descricao: "Lucro Líquido do Mês",
+      descricao: "Lucro Líquido do Período",
       valor: lucroLiquido,
       tipo: "resultado",
       destaque: true,
@@ -194,89 +161,84 @@ function buildDre(
   ];
 }
 
-export async function obterDashboardFinanceiro(): Promise<DashboardFinanceiro> {
+export interface DashboardFinanceiro {
+  resumo: ResumoFinanceiroMensal;
+  fluxoPeriodo: CashFlowDay[];
+  dre: DreLinha[];
+  usandoMock: boolean;
+}
+
+export interface DadosFinanceiroPage {
+  dashboard: DashboardFinanceiro;
+  transacoes: TransacaoFinanceira[];
+  planoContas: PlanoContaResumo[];
+  categorias: CategoriaFinanceira[];
+  contas: ContaBancaria[];
+  periodo: FiltroPeriodo;
+}
+
+async function buscarTransacoesPeriodo(periodo: FiltroPeriodo) {
+  const client = getReadClient();
+
+  const { data, error } = await client
+    .from("transacoes")
+    .select("data_competencia, tipo, valor, categorias_financeiras(nome)")
+    .eq("status", "PAGO")
+    .is("transacao_origem_id", null)
+    .gte("data_competencia", periodo.dataInicio)
+    .lte("data_competencia", periodo.dataFim);
+
+  if (error) {
+    console.error("[financeiro] erro ao buscar transações:", error.message);
+    return [];
+  }
+
+  return (data ?? []) as unknown as Array<
+    TransacaoBase & { categorias_financeiras: TransacaoComCategoria["categorias_financeiras"] }
+  >;
+}
+
+export async function obterDashboardFinanceiro(
+  periodo: FiltroPeriodo
+): Promise<DashboardFinanceiro> {
   const supabase = createAdminClient();
-  const hoje = new Date();
-  const mesAtual = startOfMonth(hoje);
-  const periodo = formatPeriodo(hoje);
+  const periodoLabel = formatPeriodoLabel(periodo.dataInicio, periodo.dataFim);
 
   if (!supabase) {
     return {
-      resumo: { ...RESUMO_MENSAL, periodo },
-      fluxo7Dias: FLUXO_7_DIAS,
+      resumo: { ...RESUMO_MENSAL, periodo: periodoLabel },
+      fluxoPeriodo: FLUXO_7_DIAS,
       dre: DRE_MENSAL,
       usandoMock: true,
     };
   }
 
-  const seteDiasAtras = new Date(hoje);
-  seteDiasAtras.setDate(hoje.getDate() - 6);
-  const dataInicio = formatDateLocal(seteDiasAtras);
-  const dataFim = formatDateLocal(hoje);
+  const [transacoesPeriodo, contas] = await Promise.all([
+    buscarTransacoesPeriodo(periodo),
+    supabase.from("contas_bancarias").select("saldo_atual").eq("ativo", true),
+  ]);
 
-  const [fluxoMensal, contas, transacoes7d, dreView, transacoesMes] =
-    await Promise.all([
-      supabase
-        .from("vw_fluxo_caixa_mensal")
-        .select("*")
-        .eq("mes", mesAtual)
-        .maybeSingle(),
-      supabase.from("contas_bancarias").select("saldo_atual").eq("ativo", true),
-      supabase
-        .from("transacoes")
-        .select("data_competencia, tipo, valor")
-        .eq("status", "PAGO")
-        .is("transacao_origem_id", null)
-        .gte("data_competencia", dataInicio)
-        .lte("data_competencia", dataFim),
-      supabase
-        .from("vw_dre_simplificado")
-        .select("*")
-        .eq("mes", mesAtual)
-        .maybeSingle(),
-      supabase
-        .from("transacoes")
-        .select("valor, tipo, categorias_financeiras(nome)")
-        .eq("status", "PAGO")
-        .is("transacao_origem_id", null)
-        .gte("data_competencia", mesAtual)
-        .lte("data_competencia", dataFim),
-    ]);
+  const { totalReceitas, totalDespesas } = calcularTotais(transacoesPeriodo);
 
   const saldoCaixa = (
     (contas.data ?? []) as Array<{ saldo_atual: number }>
   ).reduce((acc, conta) => acc + Number(conta.saldo_atual), 0);
 
-  const fluxoRow = fluxoMensal.data as {
-    total_receitas: number;
-    total_despesas: number;
-  } | null;
-  const dreRow = dreView.data as {
-    receita_bruta: number;
-    cmv_despesas: number;
-    despesas_totais: number;
-    lucro_liquido: number;
-  } | null;
-
-  const totalReceitas = Number(fluxoRow?.total_receitas ?? 0);
-  const totalDespesas = Number(fluxoRow?.total_despesas ?? 0);
-
-  const transacoes7dData = (transacoes7d.data ?? []) as Array<{
-    data_competencia: string;
-    tipo: string;
-    valor: number;
-  }>;
-
-  const transacoesMesData = (transacoesMes.data ?? []) as unknown as Array<{
-    tipo: string;
-    valor: number;
-    categorias_financeiras: { nome: string } | { nome: string }[] | null;
-  }>;
+  const transacoesComCategoria = transacoesPeriodo.map((t) => ({
+    tipo: t.tipo,
+    valor: t.valor,
+    categorias_financeiras: t.categorias_financeiras,
+  }));
 
   return {
-    resumo: { totalReceitas, totalDespesas, saldoCaixa, periodo },
-    fluxo7Dias: buildFluxo7Dias(transacoes7dData, hoje),
-    dre: buildDre(dreRow, totalReceitas, totalDespesas, transacoesMesData),
+    resumo: {
+      totalReceitas,
+      totalDespesas,
+      saldoCaixa,
+      periodo: periodoLabel,
+    },
+    fluxoPeriodo: buildFluxoPeriodo(transacoesPeriodo, periodo),
+    dre: buildDre(totalReceitas, totalDespesas, transacoesComCategoria),
     usandoMock: false,
   };
 }
@@ -309,7 +271,8 @@ export async function listarContasBancarias(): Promise<ContaBancaria[]> {
 }
 
 export async function listarTransacoesRecentes(
-  limite = 20
+  periodo: FiltroPeriodo,
+  limite = 50
 ): Promise<TransacaoFinanceira[]> {
   const client = getReadClient();
   const { data, error } = await client
@@ -318,8 +281,9 @@ export async function listarTransacoesRecentes(
       "id, descricao, tipo, valor, status, data_competencia, data_pagamento, categorias_financeiras(nome), contas_bancarias(nome)"
     )
     .is("transacao_origem_id", null)
+    .gte("data_competencia", periodo.dataInicio)
+    .lte("data_competencia", periodo.dataFim)
     .order("data_competencia", { ascending: false })
-    .order("created_at", { ascending: false })
     .limit(limite);
 
   if (error || !data) return [];
@@ -344,11 +308,10 @@ export async function listarTransacoesRecentes(
   }) as TransacaoFinanceira[];
 }
 
-export async function obterPlanoContasResumo(): Promise<PlanoContaResumo[]> {
+export async function obterPlanoContasResumo(
+  periodo: FiltroPeriodo
+): Promise<PlanoContaResumo[]> {
   const client = getReadClient();
-  const hoje = new Date();
-  const mesAtual = startOfMonth(hoje);
-  const dataFim = formatDateLocal(hoje);
 
   const { data: categorias, error: catError } = await client
     .from("categorias_financeiras")
@@ -361,11 +324,11 @@ export async function obterPlanoContasResumo(): Promise<PlanoContaResumo[]> {
 
   const { data: transacoes, error: txError } = await client
     .from("transacoes")
-    .select("categoria_id, valor")
+    .select("categoria_id, valor, tipo")
     .eq("status", "PAGO")
     .is("transacao_origem_id", null)
-    .gte("data_competencia", mesAtual)
-    .lte("data_competencia", dataFim);
+    .gte("data_competencia", periodo.dataInicio)
+    .lte("data_competencia", periodo.dataFim);
 
   if (txError) return [];
 
@@ -423,16 +386,18 @@ export async function registrarTransacao(
   }
 }
 
-export async function obterDadosFinanceiroPage(): Promise<DadosFinanceiroPage> {
+export async function obterDadosFinanceiroPage(
+  params?: { de?: string; ate?: string }
+): Promise<DadosFinanceiroPage> {
+  const periodo = parseFiltroPeriodo(params);
   const supabase = createAdminClient();
 
   if (!supabase) {
-    const hoje = new Date();
-    const periodo = formatPeriodo(hoje);
+    const periodoLabel = formatPeriodoLabel(periodo.dataInicio, periodo.dataFim);
     return {
       dashboard: {
-        resumo: { ...RESUMO_MENSAL, periodo },
-        fluxo7Dias: FLUXO_7_DIAS,
+        resumo: { ...RESUMO_MENSAL, periodo: periodoLabel },
+        fluxoPeriodo: FLUXO_7_DIAS,
         dre: DRE_MENSAL,
         usandoMock: true,
       },
@@ -440,17 +405,18 @@ export async function obterDadosFinanceiroPage(): Promise<DadosFinanceiroPage> {
       planoContas: [],
       categorias: [],
       contas: [],
+      periodo,
     };
   }
 
   const [dashboard, transacoes, planoContas, categorias, contas] =
     await Promise.all([
-      obterDashboardFinanceiro(),
-      listarTransacoesRecentes(),
-      obterPlanoContasResumo(),
+      obterDashboardFinanceiro(periodo),
+      listarTransacoesRecentes(periodo),
+      obterPlanoContasResumo(periodo),
       listarCategoriasFinanceiras(),
       listarContasBancarias(),
     ]);
 
-  return { dashboard, transacoes, planoContas, categorias, contas };
+  return { dashboard, transacoes, planoContas, categorias, contas, periodo };
 }

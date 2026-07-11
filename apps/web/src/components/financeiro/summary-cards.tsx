@@ -7,9 +7,10 @@ import type { ResumoFinanceiroMensal } from "@/lib/financeiro/mock-data";
 
 interface SummaryCardsProps {
   resumo: ResumoFinanceiroMensal;
+  periodo: string;
 }
 
-export function SummaryCards({ resumo }: SummaryCardsProps) {
+export function SummaryCards({ resumo, periodo }: SummaryCardsProps) {
   const cards = [
     {
       title: "Total de Receitas",
@@ -38,7 +39,11 @@ export function SummaryCards({ resumo }: SummaryCardsProps) {
   ];
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">
+        Totais do período: <span className="font-medium text-foreground">{periodo}</span>
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {cards.map((card) => (
         <Card key={card.title} className={card.className}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -54,6 +59,7 @@ export function SummaryCards({ resumo }: SummaryCardsProps) {
           </CardContent>
         </Card>
       ))}
+      </div>
     </div>
   );
 }
