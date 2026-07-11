@@ -15,6 +15,7 @@ import {
   classificarCmv,
   CMV_ALVO_PADRAO,
 } from "@/lib/ficha-tecnica/calculations";
+import { getConfig } from "@/lib/config";
 
 let viewsDisponiveis: boolean | null = null;
 
@@ -222,7 +223,7 @@ export async function listarInsumosAtivos(): Promise<Insumo[]> {
 }
 
 export async function obterCmvAlvoPadrao(): Promise<number> {
-  return CMV_ALVO_PADRAO;
+  return getConfig().app.cmvAlvoPadrao;
 }
 
 export async function obterFichaTecnicaPorProduto(

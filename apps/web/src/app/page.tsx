@@ -8,9 +8,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { publicConfig } from "@/lib/config";
+import type { AppModule } from "@/lib/config";
 
-const modules = [
+const modules: Array<{
+  module: AppModule;
+  title: string;
+  description: string;
+  href: string;
+  icon: typeof ChefHat;
+}> = [
   {
+    module: "pdv",
     title: "PDV — Frente de Caixa",
     description:
       "Registre vendas rapidamente, baixe estoque automaticamente e gere receita financeira.",
@@ -18,6 +27,7 @@ const modules = [
     icon: ShoppingCart,
   },
   {
+    module: "produtos",
     title: "Ficha Técnica",
     description:
       "Cadastre produtos, monte receitas com insumos e calcule CMV e margem em tempo real.",
@@ -25,6 +35,7 @@ const modules = [
     icon: ChefHat,
   },
   {
+    module: "estoque",
     title: "Controle de Estoque",
     description:
       "Gerencie insumos, produtos acabados e refrigerados. Importe NF-e e controle validade.",
@@ -32,6 +43,7 @@ const modules = [
     icon: Package,
   },
   {
+    module: "financeiro",
     title: "Gestão Financeira",
     description:
       "Acompanhe receitas, despesas, fluxo de caixa e DRE simplificado do mês.",
@@ -40,11 +52,17 @@ const modules = [
   },
 ];
 
+const enabledModules = modules.filter(
+  (mod) => publicConfig.features[mod.module]
+);
+
 export default function HomePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pão Quente</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {publicConfig.app.nomeEmpresa}
+        </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
           CRM + Gestão Financeira para padarias e casas de café. Controle
           fichas técnicas, custos e resultados em um só lugar.
@@ -52,7 +70,7 @@ export default function HomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((mod) => (
+        {enabledModules.map((mod) => (
           <Card key={mod.href} className="transition-shadow hover:shadow-md">
             <CardHeader>
               <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">

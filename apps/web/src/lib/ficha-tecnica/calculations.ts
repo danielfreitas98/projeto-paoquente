@@ -42,10 +42,12 @@ export interface ResumoFinanceiro {
   statusCmv: CmvStatus;
 }
 
-export const CMV_ALVO_PADRAO = 30;
+import { getPublicConfig } from "@/lib/config";
+
+export const CMV_ALVO_PADRAO = getPublicConfig().app.cmvAlvoPadrao;
 
 /** Tolerância em pontos percentuais para classificar CMV como "próximo da meta". */
-export const TOLERANCIA_CMV_PP = 5;
+export const TOLERANCIA_CMV_PP = getPublicConfig().app.margemAmarelaPp;
 
 export function calcularCustoTotal(custos: EstruturaCustos): number {
   return (

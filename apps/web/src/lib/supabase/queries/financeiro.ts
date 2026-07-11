@@ -1,3 +1,4 @@
+import { shouldUseMockData } from "@/lib/config";
 import { createAdminClient, hasServiceRoleKey } from "@/lib/supabase/admin";
 import type { LancamentoFormData } from "@/lib/financeiro/schemas";
 import type { CashFlowDay, DreLinha, ResumoFinanceiroMensal } from "@/lib/financeiro/mock-data";
@@ -204,7 +205,7 @@ export async function obterDashboardFinanceiro(
   const supabase = createAdminClient();
   const periodoLabel = formatPeriodoLabel(periodo.dataInicio, periodo.dataFim);
 
-  if (!supabase) {
+  if (shouldUseMockData() || !supabase) {
     return {
       resumo: { ...RESUMO_MENSAL, periodo: periodoLabel },
       fluxoPeriodo: FLUXO_7_DIAS,
@@ -392,7 +393,7 @@ export async function obterDadosFinanceiroPage(
   const periodo = parseFiltroPeriodo(params);
   const supabase = createAdminClient();
 
-  if (!supabase) {
+  if (shouldUseMockData() || !supabase) {
     const periodoLabel = formatPeriodoLabel(periodo.dataInicio, periodo.dataFim);
     return {
       dashboard: {

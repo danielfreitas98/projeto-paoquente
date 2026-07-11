@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { config } from "@/lib/config";
 
 type CookieToSet = {
   name: string;
@@ -10,9 +11,15 @@ type CookieToSet = {
 export async function createClient() {
   const cookieStore = await cookies();
 
+  const { supabaseUrl, supabaseAnonKey } = config.env;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase não configurado. Verifique as variáveis de ambiente.");
+  }
+
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {

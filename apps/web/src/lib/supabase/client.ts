@@ -1,8 +1,12 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { config } from "@/lib/config";
 
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const { supabaseUrl, supabaseAnonKey } = config.env;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase não configurado. Verifique as variáveis de ambiente.");
+  }
+
+  return createBrowserClient(supabaseUrl, supabaseAnonKey);
 }

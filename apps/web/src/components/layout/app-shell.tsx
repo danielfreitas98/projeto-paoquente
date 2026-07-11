@@ -11,13 +11,31 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { publicConfig } from "@/lib/config";
+import type { AppModule } from "@/lib/config";
+
+const moduleIcons: Record<AppModule, typeof LayoutDashboard> = {
+  pdv: ShoppingCart,
+  produtos: ChefHat,
+  estoque: Package,
+  financeiro: Wallet,
+};
 
 const navItems = [
-  { href: "/", label: "Início", icon: LayoutDashboard },
-  { href: "/pdv", label: "PDV", icon: ShoppingCart },
-  { href: "/produtos", label: "Produtos", icon: ChefHat },
-  { href: "/estoque", label: "Estoque", icon: Package },
-  { href: "/financeiro", label: "Financeiro", icon: Wallet },
+  { href: "/", label: "Início", icon: LayoutDashboard, module: null as AppModule | null },
+  ...(
+    [
+      { module: "pdv" as const, href: "/pdv", label: "PDV" },
+      { module: "produtos" as const, href: "/produtos", label: "Produtos" },
+      { module: "estoque" as const, href: "/estoque", label: "Estoque" },
+      { module: "financeiro" as const, href: "/financeiro", label: "Financeiro" },
+    ] as const
+  )
+    .filter((item) => publicConfig.features[item.module])
+    .map((item) => ({
+      ...item,
+      icon: moduleIcons[item.module],
+    })),
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -37,8 +55,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Wheat className="size-5" />
             </div>
             <div>
-              <p className="text-sm font-bold leading-none">Pão Quente</p>
-              <p className="text-xs text-muted-foreground">CRM Padarias</p>
+              <p className="text-sm font-bold leading-none">
+                {publicConfig.app.nomeEmpresa}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {publicConfig.app.nomeApp}
+              </p>
             </div>
           </Link>
 

@@ -1,11 +1,12 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-
-function getSupabaseUrl() {
-  return process.env.NEXT_PUBLIC_SUPABASE_URL;
-}
+import {
+  config,
+  hasServiceRoleKey as configHasServiceRoleKey,
+  isSupabaseConfigured as configIsSupabaseConfigured,
+} from "@/lib/config";
 
 function createClientWithKey(key: string) {
-  const url = getSupabaseUrl();
+  const url = config.env.supabaseUrl;
   if (!url) return null;
 
   return createSupabaseClient(url, key, {
@@ -17,12 +18,12 @@ function createClientWithKey(key: string) {
 }
 
 export function createAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = config.env.supabaseServiceRoleKey;
   if (serviceRoleKey) {
     return createClientWithKey(serviceRoleKey);
   }
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = config.env.supabaseAnonKey;
   if (anonKey) {
     return createClientWithKey(anonKey);
   }
@@ -31,12 +32,9 @@ export function createAdminClient() {
 }
 
 export function isSupabaseConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  return configIsSupabaseConfigured(config.env);
 }
 
 export function hasServiceRoleKey(): boolean {
-  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return configHasServiceRoleKey(config.env);
 }
