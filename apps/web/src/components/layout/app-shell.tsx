@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { publicConfig } from "@/lib/config";
 import type { AppModule } from "@/lib/config";
+import { SettingsLink } from "@/components/layout/settings-link";
 
 const moduleIcons: Record<AppModule, typeof LayoutDashboard> = {
   pdv: ShoppingCart,
@@ -86,6 +87,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
               );
             })}
+            <SettingsLink
+              className={cn(
+                pathname.startsWith("/configuracoes") &&
+                  "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary"
+              )}
+            />
           </nav>
         </div>
       </header>

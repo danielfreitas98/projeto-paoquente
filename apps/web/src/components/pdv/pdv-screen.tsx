@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SettingsLink } from "@/components/layout/settings-link";
 import { ProdutoSecao } from "@/components/pdv/produto-secao";
 import { CarrinhoPanel } from "@/components/pdv/carrinho-panel";
 import type {
@@ -226,17 +227,19 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
             <p className="text-xs text-muted-foreground">Pão Quente</p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="ml-auto"
-          onClick={() => void carregarProdutos()}
-          disabled={carregando}
-        >
-          <RefreshCw className={`size-4 ${carregando ? "animate-spin" : ""}`} />
-          Atualizar
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <SettingsLink variant="outline" size="sm" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void carregarProdutos()}
+            disabled={carregando}
+          >
+            <RefreshCw className={`size-4 ${carregando ? "animate-spin" : ""}`} />
+            Atualizar
+          </Button>
+        </div>
         {mensagem && (
           <div
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${

@@ -1,0 +1,57 @@
+---
+description: Convenções do módulo de configuração centralizado
+globs: apps/web/src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Módulo de Configuração
+
+Toda configuração da aplicação passa por `@/lib/config`. Não leia `process.env` diretamente fora de `apps/web/src/lib/config/`.
+
+## Imports
+
+```typescript
+// Servidor — env, secrets, mock
+import { config, getConfig, shouldUseMockData } from "@/lib/config";
+
+// Cliente — apenas dados públicos (NEXT_PUBLIC_*)
+import { publicConfig } from "@/lib/config";
+
+// Feature flags e módulos
+import { isModuleEnabled, getEnabledModuleRoutes } from "@/lib/config";
+```
+
+## Adicionar nova configuração
+
+1. Defina tipo e validação em `lib/config/schema.ts` (Zod)
+2. Adicione default em `lib/config/defaults.ts`
+3. Leia a variável em `env.ts`, `features.ts` ou `app.ts`
+4. Exporte em `lib/config/index.ts` se necessário
+5. Documente em `apps/web/.env.local.example`
+
+## Regras
+
+- Secrets (`SUPABASE_SERVICE_ROLE_KEY`) só em `config.env` — nunca em `publicConfig`
+- Valores de negócio públicos usam prefixo `NEXT_PUBLIC_`
+- Feature flags de módulo: `NEXT_PUBLIC_FEATURE_*` ou `NEXT_PUBLIC_ENABLED_MODULES`
+- Módulos válidos: `pdv`, `produtos`, `estoque`, `financeiro`
+- Use `shouldUseMockData()` para fallback de dados mock (não duplique a lógica)
+- Filtre navegação e rotas com `publicConfig.features` ou `isModuleEnabled()`
+
+## Exemplo — desabilitar módulo
+
+```env
+NEXT_PUBLIC_ENABLED_MODULES=pdv,produtos
+```
+
+## Anti-patterns
+
+```typescript
+// ❌ BAD
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const cmvAlvo = 30;
+
+// ✅ GOOD
+const url = config.env.supabaseUrl;
+const cmvAlvo = getConfig().app.cmvAlvoPadrao;
+```
