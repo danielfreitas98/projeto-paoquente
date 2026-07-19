@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { InsumoCombobox } from "@/components/ficha-tecnica/insumo-combobox";
 import { IngredientTable } from "@/components/ficha-tecnica/ingredient-table";
@@ -36,6 +43,7 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
   const [nomeProduto, setNomeProduto] = React.useState(initialData.nomeProduto);
   const [precoVenda, setPrecoVenda] = React.useState(initialData.precoVenda);
   const [cmvAlvo, setCmvAlvo] = React.useState(initialData.cmvAlvo);
+  const [ativo, setAtivo] = React.useState(initialData.ativo);
   const [insumos] = React.useState<Insumo[]>(initialData.insumos);
   const [insumoSelecionado, setInsumoSelecionado] = React.useState<Insumo | null>(
     null
@@ -105,6 +113,7 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
       nomeProduto,
       precoVenda,
       cmvAlvo,
+      ativo,
       ingredientes: ingredientes.map((item) => ({
         insumoId: item.insumoId,
         quantidade: item.quantidade,
@@ -204,6 +213,24 @@ export function FichaTecnicaForm({ initialData }: FichaTecnicaFormProps) {
                 <p className="text-xs text-muted-foreground">
                   Meta de custo sobre o preço de venda. Ex.: 30% → preço sugerido
                   = custo ÷ 0,30
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ativo">Status</Label>
+                <Select
+                  value={ativo ? "ativo" : "inativo"}
+                  onValueChange={(value) => setAtivo(value === "ativo")}
+                >
+                  <SelectTrigger id="ativo">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativo">Ativado</SelectItem>
+                    <SelectItem value="inativo">Desativado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Produtos desativados não aparecem no PDV.
                 </p>
               </div>
             </div>

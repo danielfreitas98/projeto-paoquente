@@ -2,22 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowLeft,
   ChefHat,
   Package,
+  Printer,
   RefreshCw,
   Search,
   ShoppingBag,
   Snowflake,
-  Wheat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SettingsLink } from "@/components/layout/settings-link";
 import { ProdutoSecao } from "@/components/pdv/produto-secao";
 import { CarrinhoPanel } from "@/components/pdv/carrinho-panel";
+import { publicConfig } from "@/lib/config";
+import {
+  imprimirCupomFiscal,
+  verificarAgenteImpressao,
+} from "@/lib/pdv/imprimir-cupom";
 import type {
+  CupomFiscalData,
   ItemCarrinho,
   MetodoPagamentoVenda,
   ProdutoPdv,
@@ -70,6 +77,30 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
     tipo: "sucesso" | "erro";
     texto: string;
   } | null>(null);
+  const [ultimoCupom, setUltimoCupom] = useState<CupomFiscalData | null>(null);
+  const [agenteOnline, setAgenteOnline] = useState<boolean | null>(null);
+
+  const opcoesImpressao = useMemo(
+    () => ({
+      tamanhoPapel: publicConfig.pdv.tamanhoPapelImpressao,
+      modoImpressao: publicConfig.pdv.modoImpressao,
+      printAgentUrl: publicConfig.pdv.printAgentUrl,
+      nomeImpressoraPadrao: publicConfig.pdv.nomeImpressoraPadrao,
+    }),
+    []
+  );
+
+  const imprimirUltimoCupom = useCallback(async () => {
+    if (!ultimoCupom) return;
+
+    const resultado = await imprimirCupomFiscal(ultimoCupom, opcoesImpressao);
+    if (!resultado.ok) {
+      setMensagem({
+        tipo: "erro",
+        texto: resultado.error ?? "Falha ao imprimir o cupom.",
+      });
+    }
+  }, [ultimoCupom, opcoesImpressao]);
 
   const carregarProdutos = useCallback(async () => {
     setCarregando(true);
@@ -100,6 +131,17 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
   useEffect(() => {
     void carregarProdutos();
   }, [carregarProdutos]);
+
+  useEffect(() => {
+    if (publicConfig.pdv.modoImpressao !== "agente") {
+      setAgenteOnline(null);
+      return;
+    }
+
+    void verificarAgenteImpressao(publicConfig.pdv.printAgentUrl).then(
+      setAgenteOnline
+    );
+  }, []);
 
   const produtosFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -161,10 +203,11 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
 
   async function concluirVenda(
     metodo: MetodoPagamentoVenda,
-    _valorRecebido?: number
+    valorRecebido?: number
   ) {
     if (carrinho.length === 0) return;
 
+    const carrinhoAtual = [...carrinho];
     setProcessando(true);
     setMensagem(null);
 
@@ -185,7 +228,7 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
         error?: string;
       };
 
-      if (!response.ok || !json.success) {
+      if (!response.ok || !json.success || !json.data) {
         setMensagem({
           tipo: "erro",
           texto: json.error ?? "Erro ao registrar a venda.",
@@ -193,11 +236,44 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
         return;
       }
 
+      const totalLiquido = json.data.total_liquido;
+      const cupom: CupomFiscalData = {
+        vendaId: json.data.venda_id,
+        dataVenda: new Date(),
+        nomeEmpresa: publicConfig.app.nomeEmpresa,
+        itens: carrinhoAtual.map((item) => ({
+          nome: item.nome,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+        })),
+        totalBruto: json.data.total_bruto,
+        desconto: json.data.desconto,
+        totalLiquido,
+        metodoPagamento: metodo,
+        valorRecebido: metodo === "DINHEIRO" ? valorRecebido : undefined,
+        troco:
+          metodo === "DINHEIRO" && valorRecebido !== undefined
+            ? Math.max(0, valorRecebido - totalLiquido)
+            : undefined,
+        mensagemRodape: publicConfig.pdv.mensagemRodapeCupom,
+      };
+
+      setUltimoCupom(cupom);
       setCarrinho([]);
       setMensagem({
         tipo: "sucesso",
-        texto: `Venda concluída! Total: R$ ${json.data?.total_liquido.toFixed(2).replace(".", ",")}`,
+        texto: `Venda concluída! Total: R$ ${totalLiquido.toFixed(2).replace(".", ",")}`,
       });
+
+      if (publicConfig.pdv.imprimirCupomAutomatico) {
+        const resultado = await imprimirCupomFiscal(cupom, opcoesImpressao);
+        if (!resultado.ok) {
+          setMensagem({
+            tipo: "erro",
+            texto: `Venda concluída, mas a impressão falhou: ${resultado.error}`,
+          });
+        }
+      }
     } catch {
       setMensagem({
         tipo: "erro",
@@ -219,15 +295,49 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
           <span className="hidden sm:inline">Voltar</span>
         </Link>
         <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Wheat className="size-4" />
-          </div>
+          <Image
+            src="/swm-crm-logo.png"
+            alt={publicConfig.app.nomeApp}
+            width={32}
+            height={32}
+            className="rounded-lg object-contain"
+          />
           <div>
             <p className="text-sm font-bold leading-none">PDV — Frente de Caixa</p>
-            <p className="text-xs text-muted-foreground">Pão Quente</p>
+            <p className="text-xs text-muted-foreground">
+              {publicConfig.app.nomeApp}
+            </p>
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {publicConfig.pdv.modoImpressao === "agente" && agenteOnline !== null && (
+            <span
+              className={`hidden rounded-full px-2 py-0.5 text-xs font-medium sm:inline ${
+                agenteOnline
+                  ? "bg-green-100 text-green-800"
+                  : "bg-amber-100 text-amber-800"
+              }`}
+              title={
+                agenteOnline
+                  ? "Agente de impressão conectado"
+                  : "Agente de impressão offline — execute npm run print-agent"
+              }
+            >
+              {agenteOnline ? "Impressora pronta" : "Agente offline"}
+            </span>
+          )}
+          {ultimoCupom && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void imprimirUltimoCupom()}
+              title={`Imprimir cupom (${publicConfig.pdv.tamanhoPapelImpressao})`}
+            >
+              <Printer className="size-4" />
+              <span className="hidden sm:inline">Imprimir Cupom</span>
+            </Button>
+          )}
           <SettingsLink variant="outline" size="sm" />
           <Button
             type="button"
@@ -241,14 +351,27 @@ export function PdvScreen({ produtosIniciais = [] }: PdvScreenProps) {
           </Button>
         </div>
         {mensagem && (
-          <div
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              mensagem.tipo === "sucesso"
-                ? "bg-green-100 text-green-800"
-                : "bg-destructive/10 text-destructive"
-            }`}
-          >
-            {mensagem.texto}
+          <div className="flex items-center gap-2">
+            <div
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                mensagem.tipo === "sucesso"
+                  ? "bg-green-100 text-green-800"
+                  : "bg-destructive/10 text-destructive"
+              }`}
+            >
+              {mensagem.texto}
+            </div>
+            {mensagem.tipo === "sucesso" && ultimoCupom && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void imprimirUltimoCupom()}
+              >
+                <Printer className="size-4" />
+                Imprimir
+              </Button>
+            )}
           </div>
         )}
       </header>

@@ -102,6 +102,7 @@ export function ProdutosList({ produtos }: ProdutosListProps) {
             <TableHeader>
               <TableRow>
                 <TableHead>Produto</TableHead>
+                <TableHead className="text-center">Status</TableHead>
                 <TableHead className="text-right">CMV %</TableHead>
                 <TableHead className="text-right">Preço Venda</TableHead>
                 <TableHead className="text-right">Sugerido</TableHead>
@@ -114,6 +115,11 @@ export function ProdutosList({ produtos }: ProdutosListProps) {
                 <TableRow key={produto.produto_id}>
                   <TableCell className="font-medium">
                     {produto.produto_nome}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={produto.ativo === false ? "secondary" : "success"}>
+                      {produto.ativo === false ? "Desativado" : "Ativado"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrency(Number(produto.cmv))}

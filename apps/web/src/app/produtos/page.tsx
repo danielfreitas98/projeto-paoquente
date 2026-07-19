@@ -5,7 +5,7 @@ import { isSupabaseConfigured, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { listarProdutosComTermometro } from "@/lib/supabase/queries/produtos";
 
 export const metadata = {
-  title: "Produtos — Pão Quente",
+  title: "Produtos — SWM - CRM",
   description: "Lista de produtos e fichas técnicas",
 };
 

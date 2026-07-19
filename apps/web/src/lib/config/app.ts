@@ -27,6 +27,15 @@ export function loadAppSettings(): AppSettings {
       "NEXT_PUBLIC_MARGEM_AMARELA_PP",
       DEFAULT_APP_SETTINGS.margemAmarelaPp
     ),
+    desenvolvedorNome:
+      readEnv("NEXT_PUBLIC_DESENVOLVEDOR_NOME") ??
+      DEFAULT_APP_SETTINGS.desenvolvedorNome,
+    desenvolvedorCnpj:
+      readEnv("NEXT_PUBLIC_DESENVOLVEDOR_CNPJ") ??
+      DEFAULT_APP_SETTINGS.desenvolvedorCnpj,
+    desenvolvedorContato:
+      readEnv("NEXT_PUBLIC_DESENVOLVEDOR_CONTATO") ??
+      DEFAULT_APP_SETTINGS.desenvolvedorContato,
   };
 
   return AppSettingsSchema.parse(raw);

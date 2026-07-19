@@ -45,6 +45,7 @@ export interface FichaTecnicaInitialData {
   nomeProduto: string;
   precoVenda: number;
   cmvAlvo: number;
+  ativo: boolean;
   ingredientes: IngredienteFicha[];
   insumos: Insumo[];
 }
@@ -91,7 +92,7 @@ async function listarProdutosComTermometroFallback(): Promise<
   if (!supabase) return [];
 
   const [produtosResult, fichaResult, insumosMap] = await Promise.all([
-    supabase.from("produtos").select("*").eq("ativo", true).order("nome"),
+    supabase.from("produtos").select("*").order("nome"),
     supabase
       .from("ficha_tecnica")
       .select("produto_id, insumo_id, quantidade_utilizada"),
@@ -136,6 +137,7 @@ async function listarProdutosComTermometroFallback(): Promise<
       margem_bruta_percentual: margemBruta,
       preco_sugerido: calcularPrecoSugerido(cmv, cmvAlvo),
       termometro: classificarCmv(cmvPercentual, cmvAlvo),
+      ativo: produto.ativo,
     };
   });
 }
@@ -186,14 +188,28 @@ export async function listarProdutosComTermometro(): Promise<
     return listarProdutosComTermometroFallback();
   }
 
-  const { data, error } = await supabase
-    .from("vw_produto_termometro")
-    .select("*")
-    .order("produto_nome");
+  const [termometroResult, ativosResult] = await Promise.all([
+    supabase.from("vw_produto_termometro").select("*").order("produto_nome"),
+    supabase.from("produtos").select("id, ativo"),
+  ]);
 
-  if (!error) {
-    return (data ?? []) as ProdutoTermometroRow[];
+  if (!termometroResult.error) {
+    const ativoPorId = new Map(
+      (ativosResult.data ?? []).map((row) => [
+        row.id as string,
+        Boolean(row.ativo),
+      ])
+    );
+
+    return ((termometroResult.data ?? []) as ProdutoTermometroRow[]).map(
+      (produto) => ({
+        ...produto,
+        ativo: ativoPorId.get(produto.produto_id) ?? true,
+      })
+    );
   }
+
+  const { error } = termometroResult;
 
   viewsDisponiveis = false;
   console.warn(
@@ -268,6 +284,7 @@ export async function obterFichaTecnicaPorProduto(
     cmvAlvo: produto.markup_desejado
       ? Number(produto.markup_desejado)
       : cmvAlvoPadrao,
+    ativo: produto.ativo,
     ingredientes,
     insumos,
   };
@@ -284,6 +301,7 @@ export async function obterDadosNovoProduto(): Promise<FichaTecnicaInitialData> 
     nomeProduto: "",
     precoVenda: 0,
     cmvAlvo: cmvAlvoPadrao,
+    ativo: true,
     ingredientes: [],
     insumos,
   };
@@ -294,6 +312,7 @@ export interface SalvarFichaTecnicaInput {
   nomeProduto: string;
   precoVenda: number;
   cmvAlvo: number;
+  ativo: boolean;
   ingredientes: Array<{
     insumoId: string;
     quantidade: number;
@@ -324,6 +343,7 @@ export async function salvarFichaTecnica(
         nome: input.nomeProduto.trim(),
         preco_venda: input.precoVenda,
         markup_desejado: input.cmvAlvo,
+        ativo: input.ativo,
       })
       .eq("id", produtoId);
 
@@ -337,6 +357,7 @@ export async function salvarFichaTecnica(
         nome: input.nomeProduto.trim(),
         preco_venda: input.precoVenda,
         markup_desejado: input.cmvAlvo,
+        ativo: input.ativo,
       })
       .select("id")
       .single();
@@ -382,7 +403,11 @@ export async function excluirProduto(
     return { success: false, error: "Supabase não configurado." };
   }
 
-  const { error } = await supabase.from("produtos").delete().eq("id", produtoId);
+  // Soft-delete: preserva histórico em venda_itens (FK ON DELETE RESTRICT).
+  const { error } = await supabase
+    .from("produtos")
+    .update({ ativo: false })
+    .eq("id", produtoId);
 
   if (error) {
     return { success: false, error: error.message };

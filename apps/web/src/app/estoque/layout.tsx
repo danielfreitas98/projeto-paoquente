@@ -1,7 +1,7 @@
 import { EstoqueNav } from "@/components/estoque/estoque-nav";
 
 export const metadata = {
-  title: "Estoque — Pão Quente",
+  title: "Estoque — SWM - CRM",
   description: "Controle de estoque, movimentações e importação de NF-e",
 };
 

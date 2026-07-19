@@ -11,7 +11,7 @@ import { obterDadosFinanceiroPage } from "@/lib/supabase/queries/financeiro";
 import { isSupabaseConfigured } from "@/lib/supabase/admin";
 
 export const metadata = {
-  title: "Financeiro — Pão Quente",
+  title: "Financeiro — SWM - CRM",
   description: "Fluxo de caixa, DRE e relatórios gerenciais",
 };
 

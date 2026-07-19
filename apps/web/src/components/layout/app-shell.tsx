@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ChefHat,
   Wallet,
-  Wheat,
   Package,
   ShoppingCart,
 } from "lucide-react";
@@ -39,6 +39,44 @@ const navItems = [
     })),
 ];
 
+function BrandMark({ size = 36 }: { size?: number }) {
+  return (
+    <Image
+      src="/swm-crm-logo.png"
+      alt={publicConfig.app.nomeApp}
+      width={size}
+      height={size}
+      className="rounded-lg object-contain"
+      priority
+    />
+  );
+}
+
+function AppFooter() {
+  const { desenvolvedorNome, desenvolvedorCnpj, desenvolvedorContato, nomeApp } =
+    publicConfig.app;
+
+  return (
+    <footer className="border-t border-border bg-card/50">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 py-4 text-center text-xs text-muted-foreground sm:flex-row sm:text-left sm:px-6 lg:px-8">
+        <p>
+          {nomeApp} · Desenvolvido por{" "}
+          <span className="font-medium text-foreground">{desenvolvedorNome}</span>
+        </p>
+        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+          <span>CNPJ {desenvolvedorCnpj}</span>
+          <a
+            href={`tel:${desenvolvedorContato.replace(/\s/g, "")}`}
+            className="hover:text-foreground hover:underline"
+          >
+            {desenvolvedorContato}
+          </a>
+        </p>
+      </div>
+    </footer>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPdv = pathname.startsWith("/pdv");
@@ -48,19 +86,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-card/80 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Wheat className="size-5" />
-            </div>
+          <Link href="/" className="flex items-center gap-2.5">
+            <BrandMark />
             <div>
               <p className="text-sm font-bold leading-none">
-                {publicConfig.app.nomeEmpresa}
+                {publicConfig.app.nomeApp}
               </p>
               <p className="text-xs text-muted-foreground">
-                {publicConfig.app.nomeApp}
+                {publicConfig.app.nomeEmpresa}
               </p>
             </div>
           </Link>
@@ -97,9 +133,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">
         {children}
       </main>
+
+      <AppFooter />
     </div>
   );
 }

@@ -3,8 +3,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pão Quente — Gestão para Padarias",
-  description: "CRM + Gestão Financeira para padarias e casas de café",
+  title: "SWM - CRM",
+  description:
+    "SWM - CRM · Relacionamentos que geram resultados. Desenvolvido por BroTech.",
 };
 
 export default function RootLayout({

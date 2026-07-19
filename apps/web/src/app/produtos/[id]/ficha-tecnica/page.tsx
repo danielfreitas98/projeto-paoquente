@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: PageProps) {
   return {
     title: data
       ? `${data.nomeProduto} — Ficha Técnica`
-      : "Ficha Técnica — Pão Quente",
+      : "Ficha Técnica — SWM - CRM",
   };
 }
 

@@ -47,6 +47,26 @@ export interface RegistrarVendaResult {
   total_liquido: number;
 }
 
+export interface CupomFiscalItem {
+  nome: string;
+  quantidade: number;
+  precoUnitario: number;
+}
+
+export interface CupomFiscalData {
+  vendaId: string;
+  dataVenda: Date;
+  nomeEmpresa: string;
+  itens: CupomFiscalItem[];
+  totalBruto: number;
+  desconto: number;
+  totalLiquido: number;
+  metodoPagamento: MetodoPagamentoVenda;
+  valorRecebido?: number;
+  troco?: number;
+  mensagemRodape: string;
+}
+
 export interface Venda {
   id: string;
   total_bruto: number;

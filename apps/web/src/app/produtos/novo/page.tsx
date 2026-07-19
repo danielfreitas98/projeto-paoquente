@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/admin";
 import { obterDadosNovoProduto } from "@/lib/supabase/queries/produtos";
 
 export const metadata = {
-  title: "Novo Produto — Pão Quente",
+  title: "Novo Produto — SWM - CRM",
   description: "Cadastrar nova ficha técnica",
 };
 

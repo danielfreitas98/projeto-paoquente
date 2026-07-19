@@ -6,6 +6,7 @@ import {
   loadEnvConfig,
 } from "./env";
 import { getEnabledModules, isModuleEnabled, loadFeatureFlags } from "./features";
+import { loadPdvSettings } from "./pdv";
 import {
   AppConfigSchema,
   PublicConfigSchema,
@@ -24,9 +25,12 @@ function buildConfig(): AppConfig {
 }
 
 function buildPublicConfig(config: AppConfig): PublicConfig {
+  const pdv = loadPdvSettings();
+
   return PublicConfigSchema.parse({
     features: config.features,
     app: config.app,
+    pdv,
     isDevelopment: config.env.nodeEnv === "development",
     isProduction: config.env.nodeEnv === "production",
   });
@@ -43,18 +47,23 @@ export type {
   AppSettings,
   EnvConfig,
   FeatureFlags,
+  PdvSettings,
   PublicConfig,
+  TamanhoPapelImpressao,
+  ModoImpressao,
 } from "./schema";
 
 export {
   ALL_MODULES,
   DEFAULT_APP_SETTINGS,
   DEFAULT_FEATURE_FLAGS,
+  DEFAULT_PDV_SETTINGS,
   MODULE_ROUTES,
 } from "./defaults";
 
 export { getEnabledModules, isModuleEnabled, loadFeatureFlags } from "./features";
 export { loadAppSettings } from "./app";
+export { loadPdvSettings } from "./pdv";
 export {
   hasServiceRoleKey,
   isSupabaseConfigured,

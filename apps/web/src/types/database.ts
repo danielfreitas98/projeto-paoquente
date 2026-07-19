@@ -175,6 +175,7 @@ export interface Database {
           margem_bruta_percentual: number;
           preco_sugerido: number;
           termometro: TermometroStatus;
+          ativo?: boolean;
         };
       };
       vw_fluxo_caixa_mensal: {

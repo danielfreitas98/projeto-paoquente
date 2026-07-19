@@ -61,11 +61,11 @@ export default function HomePage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          {publicConfig.app.nomeEmpresa}
+          {publicConfig.app.nomeApp}
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground">
-          CRM + Gestão Financeira para padarias e casas de café. Controle
-          fichas técnicas, custos e resultados em um só lugar.
+          {publicConfig.app.nomeEmpresa} · Controle fichas técnicas, estoque,
+          PDV e resultados financeiros em um só lugar.
         </p>
       </div>
 

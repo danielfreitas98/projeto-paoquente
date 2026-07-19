@@ -16,9 +16,10 @@ import {
 } from "@/lib/config";
 import { isSupabaseConfigured, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { obterConfiguracaoNegocio } from "@/lib/supabase/queries/configuracao";
+import { ImpressoraForm } from "@/components/configuracoes/impressora-form";
 
 export const metadata = {
-  title: "Configurações — Pão Quente",
+  title: "Configurações — SWM - CRM",
   description: "Configurações da aplicação e do negócio",
 };
 
@@ -78,8 +79,20 @@ export default async function ConfiguracoesPage() {
             <CardDescription>Nome exibido no header e na home</CardDescription>
           </CardHeader>
           <CardContent>
-            <ConfigRow label="Empresa" value={publicConfig.app.nomeEmpresa} />
             <ConfigRow label="Aplicação" value={publicConfig.app.nomeApp} />
+            <ConfigRow label="Empresa" value={publicConfig.app.nomeEmpresa} />
+            <ConfigRow
+              label="Desenvolvedor"
+              value={publicConfig.app.desenvolvedorNome}
+            />
+            <ConfigRow
+              label="CNPJ"
+              value={publicConfig.app.desenvolvedorCnpj}
+            />
+            <ConfigRow
+              label="Contato"
+              value={publicConfig.app.desenvolvedorContato}
+            />
           </CardContent>
         </Card>
 
@@ -118,6 +131,53 @@ export default async function ConfiguracoesPage() {
                 }
               />
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>PDV — Impressão</CardTitle>
+            <CardDescription>
+              Impressora deste computador e parâmetros do cupom fiscal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ImpressoraForm />
+            <ConfigRow
+              label="Tamanho do papel"
+              value={publicConfig.pdv.tamanhoPapelImpressao}
+            />
+            <ConfigRow
+              label="Modo de impressão"
+              value={
+                publicConfig.pdv.modoImpressao === "agente"
+                  ? "Agente local (silenciosa)"
+                  : "Navegador (diálogo)"
+              }
+            />
+            <ConfigRow
+              label="URL do agente"
+              value={
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                  {publicConfig.pdv.printAgentUrl}
+                </code>
+              }
+            />
+            <ConfigRow
+              label="Impressão automática"
+              value={
+                <StatusBadge
+                  ok={publicConfig.pdv.imprimirCupomAutomatico}
+                  label={
+                    publicConfig.pdv.imprimirCupomAutomatico ? "Ativa" : "Manual"
+                  }
+                />
+              }
+            />
+            <ConfigRow
+              label="Mensagem do rodapé"
+              value={publicConfig.pdv.mensagemRodapeCupom}
+            />
           </CardContent>
         </Card>
 
