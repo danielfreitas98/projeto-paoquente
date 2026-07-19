@@ -16,6 +16,7 @@ import {
 } from "@/lib/config";
 import { isSupabaseConfigured, hasServiceRoleKey } from "@/lib/supabase/admin";
 import { obterConfiguracaoNegocio } from "@/lib/supabase/queries/configuracao";
+import { EmpresaForm } from "@/components/configuracoes/empresa-form";
 import { ImpressoraForm } from "@/components/configuracoes/impressora-form";
 
 export const metadata = {
@@ -79,8 +80,12 @@ export default async function ConfiguracoesPage() {
             <CardDescription>Nome exibido no header e na home</CardDescription>
           </CardHeader>
           <CardContent>
+            <EmpresaForm />
             <ConfigRow label="Aplicação" value={publicConfig.app.nomeApp} />
-            <ConfigRow label="Empresa" value={publicConfig.app.nomeEmpresa} />
+            <ConfigRow
+              label="Padrão (env)"
+              value={publicConfig.app.nomeEmpresa}
+            />
             <ConfigRow
               label="Desenvolvedor"
               value={publicConfig.app.desenvolvedorNome}

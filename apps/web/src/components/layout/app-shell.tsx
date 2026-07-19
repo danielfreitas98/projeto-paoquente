@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -13,6 +14,10 @@ import {
 import { cn } from "@/lib/utils";
 import { publicConfig } from "@/lib/config";
 import type { AppModule } from "@/lib/config";
+import {
+  NOME_EMPRESA_CHANGED_EVENT,
+  resolverNomeEmpresa,
+} from "@/lib/config/empresa-storage";
 import { SettingsLink } from "@/components/layout/settings-link";
 
 const moduleIcons: Record<AppModule, typeof LayoutDashboard> = {
@@ -80,6 +85,21 @@ function AppFooter() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isPdv = pathname.startsWith("/pdv");
+  const [nomeEmpresa, setNomeEmpresa] = useState(publicConfig.app.nomeEmpresa);
+
+  useEffect(() => {
+    const sincronizar = () => {
+      setNomeEmpresa(resolverNomeEmpresa(publicConfig.app.nomeEmpresa));
+    };
+
+    sincronizar();
+    window.addEventListener(NOME_EMPRESA_CHANGED_EVENT, sincronizar);
+    window.addEventListener("storage", sincronizar);
+    return () => {
+      window.removeEventListener(NOME_EMPRESA_CHANGED_EVENT, sincronizar);
+      window.removeEventListener("storage", sincronizar);
+    };
+  }, []);
 
   if (isPdv) {
     return <>{children}</>;
@@ -95,9 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-bold leading-none">
                 {publicConfig.app.nomeApp}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {publicConfig.app.nomeEmpresa}
-              </p>
+              <p className="text-xs text-muted-foreground">{nomeEmpresa}</p>
             </div>
           </Link>
 
